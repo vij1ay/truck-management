@@ -1,0 +1,61 @@
+.detail-container { padding: 24px; max-width: 1000px; }
+
+.loading-overlay { display: flex; justify-content: center; padding: 48px; }
+
+.detail-header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 24px;
+    h2 { margin: 0; font-size: 1.4rem; font-weight: 500; }
+    .flex-spacer { flex: 1; }
+}
+
+.detail-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+    margin-bottom: 16px;
+}
+
+.info-card, .amounts-card { height: 100%; }
+
+.info-row {
+    display: flex;
+    justify-content: space-between;
+    padding: 6px 0;
+    border-bottom: 1px solid rgba(0,0,0,0.06);
+    font-size: 0.9rem;
+    &:last-child { border-bottom: none; }
+    .info-label { opacity: 0.6; font-weight: 500; }
+}
+
+.amount-row {
+    display: flex;
+    justify-content: space-between;
+    padding: 8px 0;
+    font-size: 0.9rem;
+}
+
+.total-row { font-weight: 600; font-size: 1rem; border-top: 1px solid rgba(0,0,0,0.12); margin-top: 4px; }
+.paid-row { color: #2e7d32; }
+.outstanding-warn { color: #c62828; font-weight: 500; }
+
+.payments-card { margin-top: 0; }
+.payments-table { width: 100%; }
+.cell-success { color: #2e7d32; font-weight: 500; }
+.empty-state { text-align: center; opacity: 0.5; padding: 24px; font-style: italic; }
+
+.status-chip {
+    display: inline-block;
+    padding: 3px 12px;
+    border-radius: 12px;
+    font-size: 0.8rem;
+    font-weight: 500;
+    &.status-draft     { background: #f5f5f5; color: #757575; }
+    &.status-sent      { background: #e3f2fd; color: #1565c0; }
+    &.status-partial   { background: #fff3e0; color: #e65100; }
+    &.status-paid      { background: #e8f5e9; color: #2e7d32; }
+    &.status-overdue   { background: #ffebee; color: #c62828; }
+    &.status-cancelled { background: #fafafa; color: #9e9e9e; }
+}

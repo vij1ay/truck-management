@@ -1,0 +1,65 @@
+{
+    "COMMON": {
+        "SAVE": "Save",
+        "CANCEL": "Cancel",
+        "DELETE": "Delete",
+        "EDIT": "Edit",
+        "ACTIONS": "Actions",
+        "STATUS": "Status",
+        "SEARCH": "Search",
+        "ADD_NEW": "Add New",
+        "CONFIRM_DELETE": "Are you sure you want to delete this item?",
+        "CONFIRM": "Confirm",
+        "YES": "Yes",
+        "NO": "No",
+        "LOADING": "Loading...",
+        "NO_DATA": "No records found"
+    },
+    "NAVIGATION": {
+        "DASHBOARD": "Dashboard",
+        "TRUCKS": "Trucks",
+        "DRIVERS": "Drivers",
+        "CLIENTS": "Clients",
+        "LOGOUT": "Logout"
+    },
+    "TRUCKS": {
+        "TITLE": "Trucks Management",
+        "REG_NO": "Registration No.",
+        "TYPE": "Truck Type",
+        "CAPACITY": "Capacity (Tons)",
+        "ADD_TRUCK": "Add New Truck",
+        "EDIT_TRUCK": "Edit Truck"
+    },
+    "DRIVERS": {
+        "TITLE": "Drivers Management",
+        "NAME": "Full Name",
+        "LICENSE_NO": "License No.",
+        "EXPIRY": "License Expiry",
+        "AVAILABLE": "Available",
+        "ADD_DRIVER": "Add New Driver",
+        "EDIT_DRIVER": "Edit Driver"
+    },
+    "CLIENTS": {
+        "TITLE": "Clients Management",
+        "COMPANY": "Company Name",
+        "CONTACT": "Contact Person",
+        "EMAIL": "Email",
+        "PHONE": "Phone",
+        "GST": "GST No.",
+        "ADD_CLIENT": "Add New Client",
+        "EDIT_CLIENT": "Edit Client"
+    },
+    "DOCUMENTS": {
+        "UPLOAD": "Upload Document",
+        "VIEW": "View Document",
+        "TYPE": "Document Type",
+        "EXPIRES_AT": "Expires At",
+        "NO_DOCS": "No documents attached"
+    },
+    "AUTH": {
+        "LOGIN": "Login",
+        "EMAIL": "Email",
+        "PASSWORD": "Password",
+        "SIGN_IN": "Sign In to your account"
+    }
+}

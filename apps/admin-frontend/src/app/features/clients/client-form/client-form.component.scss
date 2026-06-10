@@ -1,0 +1,25 @@
+.form-container {
+    display: flex;
+    flex-direction: column;
+    padding-top: 8px;
+    min-width: 500px;
+}
+
+.full-width {
+    width: 100%;
+}
+
+.mt-3 {
+    margin-top: 12px;
+}
+
+.row {
+    display: flex;
+    flex-direction: row;
+    gap: 16px;
+    width: 100%;
+
+    .half-width {
+        flex: 1;
+    }
+}

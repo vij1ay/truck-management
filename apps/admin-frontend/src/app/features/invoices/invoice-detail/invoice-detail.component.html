@@ -1,0 +1,87 @@
+<div class="detail-container">
+  @if (loading()) {
+    <div class="loading-overlay"><mat-spinner diameter="48"></mat-spinner></div>
+  }
+
+  @if (invoice(); as inv) {
+    <div class="detail-header">
+      <button mat-icon-button (click)="back()"><mat-icon>arrow_back</mat-icon></button>
+      <h2>{{ inv.invoice_no }}</h2>
+      <span class="status-chip" [class]="statusClass(inv.status)">{{ inv.status | titlecase }}</span>
+      <span class="flex-spacer"></span>
+
+      @if (inv.status === 'draft') {
+        <button mat-stroked-button (click)="sendInvoice()">
+          <mat-icon>send</mat-icon> Mark as Sent
+        </button>
+      }
+      @if (inv.status === 'sent' || inv.status === 'partial' || inv.status === 'overdue') {
+        <button mat-flat-button color="primary" (click)="openPaymentDialog()">
+          <mat-icon>payments</mat-icon> Record Payment
+        </button>
+      }
+    </div>
+
+    <div class="detail-grid">
+      <!-- Invoice info -->
+      <mat-card class="info-card">
+        <mat-card-header><mat-card-title>Invoice Details</mat-card-title></mat-card-header>
+        <mat-card-content>
+          <div class="info-row"><span class="info-label">Client</span><span>{{ inv.client_name }}</span></div>
+          <div class="info-row"><span class="info-label">Load</span><span>{{ inv.load_no ?? '—' }}</span></div>
+          <div class="info-row"><span class="info-label">Issued</span><span>{{ inv.issued_date }}</span></div>
+          <div class="info-row"><span class="info-label">Due</span><span>{{ inv.due_date ?? '—' }}</span></div>
+          @if (inv.notes) {
+            <div class="info-row"><span class="info-label">Notes</span><span>{{ inv.notes }}</span></div>
+          }
+        </mat-card-content>
+      </mat-card>
+
+      <!-- Amounts -->
+      <mat-card class="amounts-card">
+        <mat-card-header><mat-card-title>Amounts</mat-card-title></mat-card-header>
+        <mat-card-content>
+          <div class="amount-row"><span>Subtotal</span><span>{{ formatCurrency(inv.subtotal) }}</span></div>
+          <div class="amount-row"><span>Tax ({{ inv.tax_rate }}%)</span><span>{{ formatCurrency(inv.tax_amount) }}</span></div>
+          <mat-divider></mat-divider>
+          <div class="amount-row total-row"><span>Total</span><span>{{ formatCurrency(inv.total_amount) }}</span></div>
+          <div class="amount-row paid-row"><span>Paid</span><span>{{ formatCurrency(inv.paid_amount) }}</span></div>
+          <div class="amount-row" [class.outstanding-warn]="inv.outstanding_amount > 0">
+            <span>Outstanding</span><span>{{ formatCurrency(inv.outstanding_amount) }}</span>
+          </div>
+        </mat-card-content>
+      </mat-card>
+    </div>
+
+    <!-- Payment history -->
+    <mat-card class="payments-card">
+      <mat-card-header><mat-card-title>Payment History</mat-card-title></mat-card-header>
+      <mat-card-content>
+        @if (inv.payments.length === 0) {
+          <p class="empty-state">No payments recorded yet.</p>
+        } @else {
+          <table mat-table [dataSource]="inv.payments" class="payments-table">
+            <ng-container matColumnDef="payment_date">
+              <th mat-header-cell *matHeaderCellDef>Date</th>
+              <td mat-cell *matCellDef="let p">{{ p.payment_date }}</td>
+            </ng-container>
+            <ng-container matColumnDef="payment_method">
+              <th mat-header-cell *matHeaderCellDef>Method</th>
+              <td mat-cell *matCellDef="let p">{{ p.payment_method | titlecase }}</td>
+            </ng-container>
+            <ng-container matColumnDef="reference_no">
+              <th mat-header-cell *matHeaderCellDef>Reference</th>
+              <td mat-cell *matCellDef="let p">{{ p.reference_no ?? '—' }}</td>
+            </ng-container>
+            <ng-container matColumnDef="amount">
+              <th mat-header-cell *matHeaderCellDef>Amount</th>
+              <td mat-cell *matCellDef="let p" class="cell-success">{{ formatCurrency(p.amount) }}</td>
+            </ng-container>
+            <tr mat-header-row *matHeaderRowDef="paymentColumns"></tr>
+            <tr mat-row *matRowDef="let row; columns: paymentColumns;"></tr>
+          </table>
+        }
+      </mat-card-content>
+    </mat-card>
+  }
+</div>

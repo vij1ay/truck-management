@@ -1,0 +1,62 @@
+<h2 mat-dialog-title>
+    {{ (isEditMode ? 'COMMON.EDIT' : 'COMMON.ADD_NEW') | translate }} Client
+</h2>
+
+<mat-dialog-content>
+    <form [formGroup]="clientForm" class="form-container">
+
+        <mat-form-field appearance="outline" class="full-width mt-3">
+            <mat-label>Company Name</mat-label>
+            <input matInput formControlName="company_name" placeholder="Acme Corp">
+            <mat-error *ngIf="clientForm.get('company_name')?.hasError('required')">Required.</mat-error>
+        </mat-form-field>
+
+        <div class="row">
+            <mat-form-field appearance="outline" class="half-width">
+                <mat-label>Contact Person</mat-label>
+                <input matInput formControlName="contact_person" placeholder="Jane Doe">
+                <mat-error *ngIf="clientForm.get('contact_person')?.hasError('required')">Required.</mat-error>
+            </mat-form-field>
+
+            <mat-form-field appearance="outline" class="half-width">
+                <mat-label>Contact Phone</mat-label>
+                <input matInput formControlName="phone" placeholder="+91 9789723394">
+                <mat-error *ngIf="clientForm.get('phone')?.hasError('required')">Required.</mat-error>
+                <mat-error *ngIf="clientForm.get('phone')?.hasError('pattern')">Invalid format. (e.g. +91 9789723394 or 9789723394)</mat-error>
+            </mat-form-field>
+        </div>
+
+        <div class="row">
+            <mat-form-field appearance="outline" class="half-width">
+                <mat-label>Email Address</mat-label>
+                <input matInput type="email" formControlName="email" placeholder="jane@acme.com">
+                <mat-error *ngIf="clientForm.get('email')?.hasError('required')">Required.</mat-error>
+                <mat-error *ngIf="clientForm.get('email')?.hasError('email')">Invalid email.</mat-error>
+            </mat-form-field>
+
+            <mat-form-field appearance="outline" class="half-width">
+                <mat-label>GST Number</mat-label>
+                <input matInput formControlName="gst_no" placeholder="22AAAAA0000A1Z5">
+                <mat-error *ngIf="clientForm.get('gst_no')?.hasError('required')">GST Number is crucial.</mat-error>
+                <mat-hint *ngIf="isEditMode">GST Number cannot be changed after creation.</mat-hint>
+            </mat-form-field>
+        </div>
+
+        <mat-form-field appearance="outline" class="full-width">
+            <mat-label>Billing Address</mat-label>
+            <textarea matInput formControlName="address" rows="3"
+                placeholder="123 Corporate Blvd..."></textarea>
+            <mat-error *ngIf="clientForm.get('address')?.hasError('required')">Required.</mat-error>
+        </mat-form-field>
+
+    </form>
+</mat-dialog-content>
+
+<mat-dialog-actions align="end">
+    <button mat-button mat-dialog-close [disabled]="loading">
+        {{ 'COMMON.CANCEL' | translate }}
+    </button>
+    <button mat-raised-button color="primary" (click)="onSubmit()" [disabled]="clientForm.invalid || loading">
+        {{ (isEditMode ? 'COMMON.SAVE' : 'COMMON.CREATE') | translate }}
+    </button>
+</mat-dialog-actions>

@@ -1,0 +1,301 @@
+<div class="reports-container">
+  <h2 class="page-title">
+    <mat-icon>bar_chart</mat-icon>
+    Reports & Analytics
+  </h2>
+
+  @if (loading()) {
+    <div class="loading-overlay">
+      <mat-spinner diameter="48"></mat-spinner>
+    </div>
+  }
+
+  <!-- KPI Cards -->
+  @if (summary(); as s) {
+    <div class="kpi-grid">
+      <mat-card class="kpi-card">
+        <mat-card-content>
+          <mat-icon class="kpi-icon kpi-loads">local_shipping</mat-icon>
+          <div class="kpi-value">{{ s.total_loads | number }}</div>
+          <div class="kpi-label">Total Loads</div>
+          <div class="kpi-sub">{{ s.loads_this_month | number }} this month</div>
+        </mat-card-content>
+      </mat-card>
+
+      <mat-card class="kpi-card">
+        <mat-card-content>
+          <mat-icon class="kpi-icon kpi-revenue">payments</mat-icon>
+          <div class="kpi-value">{{ formatCurrency(s.total_freight) }}</div>
+          <div class="kpi-label">Delivered Revenue</div>
+          <div class="kpi-sub">{{ formatCurrency(s.revenue_this_month) }} this month</div>
+        </mat-card-content>
+      </mat-card>
+
+      <mat-card class="kpi-card kpi-warning">
+        <mat-card-content>
+          <mat-icon class="kpi-icon kpi-outstanding">account_balance_wallet</mat-icon>
+          <div class="kpi-value">{{ formatCurrency(s.total_outstanding) }}</div>
+          <div class="kpi-label">Outstanding Balance</div>
+          <div class="kpi-sub">On delivered loads</div>
+        </mat-card-content>
+      </mat-card>
+
+      <mat-card class="kpi-card">
+        <mat-card-content>
+          <mat-icon class="kpi-icon kpi-trucks">directions_bus</mat-icon>
+          <div class="kpi-value">{{ s.available_trucks }} / {{ s.active_trucks }}</div>
+          <div class="kpi-label">Trucks Available</div>
+          <div class="kpi-sub">Available / Active</div>
+        </mat-card-content>
+      </mat-card>
+
+      <mat-card class="kpi-card">
+        <mat-card-content>
+          <mat-icon class="kpi-icon kpi-drivers">person_pin</mat-icon>
+          <div class="kpi-value">{{ s.available_drivers }} / {{ s.active_drivers }}</div>
+          <div class="kpi-label">Drivers Available</div>
+          <div class="kpi-sub">Available / Active</div>
+        </mat-card-content>
+      </mat-card>
+    </div>
+  }
+
+  <!-- Tabs -->
+  <mat-tab-group animationDuration="200ms" class="reports-tabs">
+
+    <!-- Overview Tab -->
+    <mat-tab label="Overview">
+      <div class="tab-content">
+
+        @if (summary(); as s) {
+          <mat-card class="section-card">
+            <mat-card-header>
+              <mat-card-title>Load Status Breakdown</mat-card-title>
+              <mat-card-subtitle>All time · {{ s.total_loads | number }} total</mat-card-subtitle>
+            </mat-card-header>
+            <mat-card-content>
+              <div class="status-bars">
+                @for (bar of statusBars; track bar.key) {
+                  <div class="status-row">
+                    <span class="status-name">{{ bar.label }}</span>
+                    <mat-progress-bar
+                      class="status-bar"
+                      [mode]="'determinate'"
+                      [color]="bar.color"
+                      [value]="statusPercent()[bar.key] ?? 0">
+                    </mat-progress-bar>
+                    <span class="status-count">
+                      {{ statusCount()[bar.key] ?? 0 }}
+                      <span class="status-pct">({{ (statusPercent()[bar.key] ?? 0) / 100 | percent:'1.0-0' }})</span>
+                    </span>
+                  </div>
+                }
+              </div>
+            </mat-card-content>
+          </mat-card>
+        }
+
+        <mat-card class="section-card">
+          <mat-card-header>
+            <mat-card-title>Monthly Load Trend</mat-card-title>
+            <mat-card-subtitle>Last 12 months by pickup date</mat-card-subtitle>
+          </mat-card-header>
+          <mat-card-content>
+            @if (trend().length === 0) {
+              <p class="empty-state">No data available yet.</p>
+            } @else {
+              <table mat-table [dataSource]="trend()" class="report-table">
+                <ng-container matColumnDef="period">
+                  <th mat-header-cell *matHeaderCellDef>Period</th>
+                  <td mat-cell *matCellDef="let row">{{ row.period }}</td>
+                </ng-container>
+                <ng-container matColumnDef="total">
+                  <th mat-header-cell *matHeaderCellDef>Total</th>
+                  <td mat-cell *matCellDef="let row">{{ row.total }}</td>
+                </ng-container>
+                <ng-container matColumnDef="delivered">
+                  <th mat-header-cell *matHeaderCellDef>Delivered</th>
+                  <td mat-cell *matCellDef="let row" class="cell-success">{{ row.delivered }}</td>
+                </ng-container>
+                <ng-container matColumnDef="cancelled">
+                  <th mat-header-cell *matHeaderCellDef>Cancelled</th>
+                  <td mat-cell *matCellDef="let row" class="cell-warn">{{ row.cancelled }}</td>
+                </ng-container>
+                <tr mat-header-row *matHeaderRowDef="trendColumns"></tr>
+                <tr mat-row *matRowDef="let row; columns: trendColumns;"></tr>
+              </table>
+            }
+          </mat-card-content>
+        </mat-card>
+
+      </div>
+    </mat-tab>
+
+    <!-- Revenue Tab -->
+    <mat-tab label="Revenue">
+      <div class="tab-content">
+        <mat-card class="section-card">
+          <mat-card-header>
+            <mat-card-title>Revenue by Client</mat-card-title>
+            <mat-card-subtitle>Non-cancelled loads · sorted by total freight</mat-card-subtitle>
+          </mat-card-header>
+          <mat-card-content>
+            @if (revenue().length === 0) {
+              <p class="empty-state">No revenue data available.</p>
+            } @else {
+              <div class="revenue-totals">
+                <div class="total-chip">
+                  <span class="total-label">Total Freight</span>
+                  <span class="total-value">{{ formatCurrency(revenueTotal().total_freight) }}</span>
+                </div>
+                <div class="total-chip">
+                  <span class="total-label">Total Advance</span>
+                  <span class="total-value">{{ formatCurrency(revenueTotal().total_advance) }}</span>
+                </div>
+                <div class="total-chip total-chip-warn">
+                  <span class="total-label">Outstanding</span>
+                  <span class="total-value">{{ formatCurrency(revenueTotal().total_outstanding) }}</span>
+                </div>
+              </div>
+
+              <table mat-table [dataSource]="revenue()" class="report-table">
+                <ng-container matColumnDef="client_name">
+                  <th mat-header-cell *matHeaderCellDef>Client</th>
+                  <td mat-cell *matCellDef="let row">{{ row.client_name }}</td>
+                </ng-container>
+                <ng-container matColumnDef="load_count">
+                  <th mat-header-cell *matHeaderCellDef>Loads</th>
+                  <td mat-cell *matCellDef="let row">{{ row.load_count }}</td>
+                </ng-container>
+                <ng-container matColumnDef="total_freight">
+                  <th mat-header-cell *matHeaderCellDef>Total Freight</th>
+                  <td mat-cell *matCellDef="let row">{{ formatCurrency(row.total_freight) }}</td>
+                </ng-container>
+                <ng-container matColumnDef="total_advance">
+                  <th mat-header-cell *matHeaderCellDef>Advance</th>
+                  <td mat-cell *matCellDef="let row">{{ formatCurrency(row.total_advance) }}</td>
+                </ng-container>
+                <ng-container matColumnDef="total_outstanding">
+                  <th mat-header-cell *matHeaderCellDef>Outstanding</th>
+                  <td mat-cell *matCellDef="let row" [class.cell-warn]="row.total_outstanding > 0">
+                    {{ formatCurrency(row.total_outstanding) }}
+                  </td>
+                </ng-container>
+                <tr mat-header-row *matHeaderRowDef="revenueColumns"></tr>
+                <tr mat-row *matRowDef="let row; columns: revenueColumns;"></tr>
+              </table>
+            }
+          </mat-card-content>
+        </mat-card>
+      </div>
+    </mat-tab>
+
+    <!-- Drivers Tab -->
+    <mat-tab label="Drivers">
+      <div class="tab-content">
+        <mat-card class="section-card">
+          <mat-card-header>
+            <mat-card-title>Driver Performance</mat-card-title>
+            <mat-card-subtitle>Trips completed, cancelled, and on-time delivery rate</mat-card-subtitle>
+          </mat-card-header>
+          <mat-card-content>
+            @if (drivers().length === 0) {
+              <p class="empty-state">No driver trip data available.</p>
+            } @else {
+              <table mat-table [dataSource]="drivers()" class="report-table">
+                <ng-container matColumnDef="driver_name">
+                  <th mat-header-cell *matHeaderCellDef>Driver</th>
+                  <td mat-cell *matCellDef="let row">{{ row.driver_name }}</td>
+                </ng-container>
+                <ng-container matColumnDef="total_trips">
+                  <th mat-header-cell *matHeaderCellDef>Total</th>
+                  <td mat-cell *matCellDef="let row">{{ row.total_trips }}</td>
+                </ng-container>
+                <ng-container matColumnDef="trips_completed">
+                  <th mat-header-cell *matHeaderCellDef>Delivered</th>
+                  <td mat-cell *matCellDef="let row" class="cell-success">{{ row.trips_completed }}</td>
+                </ng-container>
+                <ng-container matColumnDef="trips_cancelled">
+                  <th mat-header-cell *matHeaderCellDef>Cancelled</th>
+                  <td mat-cell *matCellDef="let row" [class.cell-warn]="row.trips_cancelled > 0">
+                    {{ row.trips_cancelled }}
+                  </td>
+                </ng-container>
+                <ng-container matColumnDef="on_time_deliveries">
+                  <th mat-header-cell *matHeaderCellDef>On Time</th>
+                  <td mat-cell *matCellDef="let row">
+                    {{ row.on_time_deliveries }}
+                    @if (row.trips_completed > 0) {
+                      <span class="cell-sub">({{ onTimeRate(row) | percent:'1.0-0' }})</span>
+                    }
+                  </td>
+                </ng-container>
+                <tr mat-header-row *matHeaderRowDef="driverColumns"></tr>
+                <tr mat-row *matRowDef="let row; columns: driverColumns;"></tr>
+              </table>
+            }
+          </mat-card-content>
+        </mat-card>
+      </div>
+    </mat-tab>
+
+    <!-- Trucks Tab -->
+    <mat-tab label="Trucks">
+      <div class="tab-content">
+
+        @if (truckStatusEntries().length > 0) {
+          <mat-card class="section-card section-card-sm">
+            <mat-card-header>
+              <mat-card-title>Fleet Status</mat-card-title>
+            </mat-card-header>
+            <mat-card-content>
+              <div class="fleet-chips">
+                @for (entry of truckStatusEntries(); track entry.status) {
+                  <div class="fleet-chip">
+                    <span class="fleet-count">{{ entry.count }}</span>
+                    <span class="fleet-status">{{ entry.status | titlecase }}</span>
+                  </div>
+                }
+              </div>
+            </mat-card-content>
+          </mat-card>
+        }
+
+        <mat-card class="section-card">
+          <mat-card-header>
+            <mat-card-title>Truck Utilization</mat-card-title>
+            <mat-card-subtitle>Delivered trips per truck (all time)</mat-card-subtitle>
+          </mat-card-header>
+          <mat-card-content>
+            @if (trucks().length === 0) {
+              <p class="empty-state">No truck data available.</p>
+            } @else {
+              <table mat-table [dataSource]="trucks()" class="report-table">
+                <ng-container matColumnDef="registration_no">
+                  <th mat-header-cell *matHeaderCellDef>Registration</th>
+                  <td mat-cell *matCellDef="let row">{{ row.registration_no }}</td>
+                </ng-container>
+                <ng-container matColumnDef="status">
+                  <th mat-header-cell *matHeaderCellDef>Status</th>
+                  <td mat-cell *matCellDef="let row">
+                    <span class="status-chip" [class]="'chip-' + row.status">
+                      {{ row.status | titlecase }}
+                    </span>
+                  </td>
+                </ng-container>
+                <ng-container matColumnDef="trips_completed">
+                  <th mat-header-cell *matHeaderCellDef>Trips Delivered</th>
+                  <td mat-cell *matCellDef="let row">{{ row.trips_completed }}</td>
+                </ng-container>
+                <tr mat-header-row *matHeaderRowDef="truckColumns"></tr>
+                <tr mat-row *matRowDef="let row; columns: truckColumns;"></tr>
+              </table>
+            }
+          </mat-card-content>
+        </mat-card>
+
+      </div>
+    </mat-tab>
+
+  </mat-tab-group>
+</div>

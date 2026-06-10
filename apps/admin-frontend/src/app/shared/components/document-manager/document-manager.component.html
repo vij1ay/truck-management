@@ -1,0 +1,49 @@
+<mat-card class="doc-manager-card">
+    <mat-card-header>
+        <mat-card-title>Attached Documents</mat-card-title>
+        <div class="header-actions">
+            <button mat-raised-button color="primary" (click)="onUploadClicked()" [disabled]="loading">
+                <mat-icon>upload_file</mat-icon> Upload
+            </button>
+        </div>
+    </mat-card-header>
+
+    <mat-divider></mat-divider>
+
+    <mat-card-content class="document-list">
+        <div class="loading-state" *ngIf="loading && documents.length === 0">
+            <mat-icon class="spin">autorenew</mat-icon> Loading documents...
+        </div>
+
+        <div class="empty-state" *ngIf="!loading && documents.length === 0">
+            <p class="text-muted">No documents attached.</p>
+        </div>
+
+        <div class="doc-item" *ngFor="let doc of documents">
+            <div class="doc-info">
+                <mat-icon class="doc-icon">description</mat-icon>
+                <div class="doc-details">
+                    <span class="file-name">{{ doc.file_name }}</span>
+                    <span class="file-type">{{ doc.document_type }} &middot; {{ doc.created_at | date:'shortDate'
+                        }}</span>
+                </div>
+            </div>
+
+            <div class="doc-status">
+                <app-status-badge [value]="doc.is_expired ? 'EXPIRED' : doc.document_status"></app-status-badge>
+            </div>
+
+            <div class="doc-actions">
+                <!-- View Action assuming file_url is present -->
+                <a mat-icon-button *ngIf="doc.file_url" [href]="doc.file_url" target="_blank"
+                    aria-label="View Document">
+                    <mat-icon color="primary">visibility</mat-icon>
+                </a>
+                <button mat-icon-button color="warn" (click)="onDelete(doc)" aria-label="Delete Document">
+                    <mat-icon>delete</mat-icon>
+                </button>
+            </div>
+        </div>
+
+    </mat-card-content>
+</mat-card>

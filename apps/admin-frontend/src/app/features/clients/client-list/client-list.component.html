@@ -1,0 +1,22 @@
+<div class="view-header">
+    <div class="title-container">
+        <h1 class="mat-headline-5 m-0">Clients</h1>
+        <p class="mat-body-1 text-muted m-0">Manage customer records, GST numbers, and billing details.</p>
+    </div>
+
+    <div class="actions">
+        <button mat-raised-button color="primary" (click)="openFormDialog()">
+            <mat-icon>add</mat-icon>
+            {{ 'COMMON.ADD_NEW' | translate }}
+        </button>
+    </div>
+</div>
+
+<mat-card class="table-card">
+    <div class="table-card-content">
+        <app-data-table [columns]="columns" [data]="clients" [totalItems]="totalItems" [pageSize]="pageSize"
+            [pageIndex]="pageIndex" [loading]="loading" [actions]="actions" (pageChanged)="onPageChange($event)"
+            (actionClicked)="onActionClicked($event)">
+        </app-data-table>
+    </div>
+</mat-card>

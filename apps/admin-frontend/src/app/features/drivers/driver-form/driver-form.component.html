@@ -1,0 +1,138 @@
+<h2 mat-dialog-title>{{ isEditMode ? 'Edit' : 'Register New' }} Driver</h2>
+
+<mat-dialog-content>
+    <form [formGroup]="driverForm" class="form-container">
+
+        <!-- ── PERSONAL INFO ── -->
+        <p class="section-label">Personal Information</p>
+
+        <div class="row">
+            <mat-form-field appearance="outline" class="half-width">
+                <mat-label>First Name *</mat-label>
+                <input matInput formControlName="first_name" placeholder="John">
+                <mat-error *ngIf="driverForm.get('first_name')?.hasError('required')">Required.</mat-error>
+            </mat-form-field>
+            <mat-form-field appearance="outline" class="half-width">
+                <mat-label>Last Name *</mat-label>
+                <input matInput formControlName="last_name" placeholder="Doe">
+                <mat-error *ngIf="driverForm.get('last_name')?.hasError('required')">Required.</mat-error>
+            </mat-form-field>
+        </div>
+
+        <div class="row">
+            <mat-form-field appearance="outline" class="half-width">
+                <mat-label>Phone *</mat-label>
+                <input matInput formControlName="phone" placeholder="+91 98765 43210">
+                <mat-icon matSuffix>phone</mat-icon>
+                <mat-error *ngIf="driverForm.get('phone')?.hasError('required')">Required.</mat-error>
+                <mat-error *ngIf="driverForm.get('phone')?.hasError('minlength')">Min 7 digits.</mat-error>
+            </mat-form-field>
+            <mat-form-field appearance="outline" class="half-width">
+                <mat-label>Email</mat-label>
+                <input matInput type="email" formControlName="email" placeholder="driver@example.com">
+                <mat-icon matSuffix>email</mat-icon>
+            </mat-form-field>
+        </div>
+
+        <div class="row">
+            <mat-form-field appearance="outline" class="half-width">
+                <mat-label>Employee ID</mat-label>
+                <input matInput formControlName="employee_id" placeholder="EMP-001">
+            </mat-form-field>
+            <mat-form-field appearance="outline" class="half-width">
+                <mat-label>Address</mat-label>
+                <input matInput formControlName="address" placeholder="Street, City">
+            </mat-form-field>
+        </div>
+
+        <mat-divider class="section-divider"></mat-divider>
+
+        <!-- ── LICENSE ── -->
+        <p class="section-label">Licence Details</p>
+
+        <mat-form-field appearance="outline" class="full-width">
+            <mat-label>Licence Number *</mat-label>
+            <input matInput formControlName="license_no" placeholder="MH-1234567890">
+            <mat-hint *ngIf="isEditMode">Cannot be changed after creation.</mat-hint>
+            <mat-error *ngIf="driverForm.get('license_no')?.hasError('required')">Required.</mat-error>
+        </mat-form-field>
+
+        <div class="row">
+            <mat-form-field appearance="outline" class="half-width">
+                <mat-label>Licence Class *</mat-label>
+                <mat-select formControlName="license_class">
+                    <mat-option *ngFor="let lc of licenseClasses" [value]="lc.value">{{ lc.label }}</mat-option>
+                </mat-select>
+                <mat-error *ngIf="driverForm.get('license_class')?.hasError('required')">Required.</mat-error>
+            </mat-form-field>
+            <mat-form-field appearance="outline" class="half-width">
+                <mat-label>Licence Expiry Date *</mat-label>
+                <input matInput [matDatepicker]="picker" formControlName="license_expiry">
+                <mat-datepicker-toggle matIconSuffix [for]="picker"></mat-datepicker-toggle>
+                <mat-datepicker #picker></mat-datepicker>
+                <mat-error *ngIf="driverForm.get('license_expiry')?.hasError('required')">Required.</mat-error>
+            </mat-form-field>
+        </div>
+
+        <mat-divider class="section-divider"></mat-divider>
+
+        <!-- ── LOCATION & TRUCK MAPPING ── -->
+        <p class="section-label">Location & Truck Assignment</p>
+
+        <mat-form-field appearance="outline" class="full-width">
+            <mat-label>Base Location (Home Depot)</mat-label>
+            <input matInput formControlName="base_location" placeholder="e.g. Mumbai Depot, Warehouse B">
+            <mat-icon matSuffix>location_on</mat-icon>
+            <mat-hint>The driver's usual reporting / parking location.</mat-hint>
+        </mat-form-field>
+
+        <mat-form-field appearance="outline" class="full-width">
+            <mat-label>Qualified Trucks (select all applicable)</mat-label>
+            <mat-select formControlName="assigned_truck_ids" multiple>
+                <mat-option *ngFor="let t of availableTrucks" [value]="t.id">
+                    {{ t.registration_no }} — {{ t.truck_type }}
+                    <span *ngIf="t.capacity_tons"> ({{ t.capacity_tons }}T)</span>
+                </mat-option>
+                <mat-option *ngIf="availableTrucks.length === 0" disabled>
+                    No trucks available — add trucks first.
+                </mat-option>
+            </mat-select>
+            <mat-hint>Driver can be allocated to any of these trucks.</mat-hint>
+        </mat-form-field>
+
+        <mat-divider class="section-divider"></mat-divider>
+
+        <!-- ── EMERGENCY CONTACT ── -->
+        <p class="section-label">Emergency Contact <span class="section-hint">(optional)</span></p>
+
+        <div class="row">
+            <mat-form-field appearance="outline" class="half-width">
+                <mat-label>Contact Name</mat-label>
+                <input matInput formControlName="emergency_contact_name">
+            </mat-form-field>
+            <mat-form-field appearance="outline" class="half-width">
+                <mat-label>Contact Phone</mat-label>
+                <input matInput formControlName="emergency_contact_phone">
+            </mat-form-field>
+        </div>
+
+        <mat-divider class="section-divider"></mat-divider>
+
+        <!-- ── NOTES ── -->
+        <mat-form-field appearance="outline" class="full-width">
+            <mat-label>Notes</mat-label>
+            <textarea matInput formControlName="notes" rows="2" placeholder="Any additional info..."></textarea>
+        </mat-form-field>
+
+    </form>
+
+    <app-document-manager *ngIf="isEditMode" entityType="DRIVER" [entityId]="data.driver!.id" entityPlural="drivers">
+    </app-document-manager>
+</mat-dialog-content>
+
+<mat-dialog-actions align="end">
+    <button mat-button mat-dialog-close [disabled]="loading">Cancel</button>
+    <button mat-raised-button color="primary" (click)="onSubmit()" [disabled]="driverForm.invalid || loading">
+        {{ isEditMode ? 'Save Changes' : 'Register Driver' }}
+    </button>
+</mat-dialog-actions>

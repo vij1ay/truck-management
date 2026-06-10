@@ -1,0 +1,94 @@
+<div class="list-container">
+  <div class="list-header">
+    <h2 class="page-title">
+      <mat-icon>receipt_long</mat-icon>
+      Invoices
+    </h2>
+    <mat-form-field appearance="outline" class="status-filter">
+      <mat-label>Status</mat-label>
+      <mat-select [(ngModel)]="statusFilter" (ngModelChange)="onStatusChange()">
+        @for (opt of statusOptions; track opt.value) {
+          <mat-option [value]="opt.value">{{ opt.label }}</mat-option>
+        }
+      </mat-select>
+    </mat-form-field>
+  </div>
+
+  <mat-card>
+    <mat-card-content>
+      @if (loading()) {
+        <div class="loading-overlay"><mat-spinner diameter="40"></mat-spinner></div>
+      } @else if (invoices().length === 0) {
+        <p class="empty-state">No invoices found.</p>
+      } @else {
+        <table mat-table [dataSource]="invoices()" class="invoice-table">
+
+          <ng-container matColumnDef="invoice_no">
+            <th mat-header-cell *matHeaderCellDef>Invoice #</th>
+            <td mat-cell *matCellDef="let inv">
+              <a class="inv-link" (click)="openDetail(inv)">{{ inv.invoice_no }}</a>
+            </td>
+          </ng-container>
+
+          <ng-container matColumnDef="client_name">
+            <th mat-header-cell *matHeaderCellDef>Client</th>
+            <td mat-cell *matCellDef="let inv">{{ inv.client_name }}</td>
+          </ng-container>
+
+          <ng-container matColumnDef="load_no">
+            <th mat-header-cell *matHeaderCellDef>Load</th>
+            <td mat-cell *matCellDef="let inv">{{ inv.load_no ?? '—' }}</td>
+          </ng-container>
+
+          <ng-container matColumnDef="issued_date">
+            <th mat-header-cell *matHeaderCellDef>Issued</th>
+            <td mat-cell *matCellDef="let inv">{{ inv.issued_date }}</td>
+          </ng-container>
+
+          <ng-container matColumnDef="total_amount">
+            <th mat-header-cell *matHeaderCellDef>Total</th>
+            <td mat-cell *matCellDef="let inv">{{ formatCurrency(inv.total_amount) }}</td>
+          </ng-container>
+
+          <ng-container matColumnDef="paid_amount">
+            <th mat-header-cell *matHeaderCellDef>Paid</th>
+            <td mat-cell *matCellDef="let inv" class="cell-success">{{ formatCurrency(inv.paid_amount) }}</td>
+          </ng-container>
+
+          <ng-container matColumnDef="outstanding_amount">
+            <th mat-header-cell *matHeaderCellDef>Outstanding</th>
+            <td mat-cell *matCellDef="let inv" [class.cell-warn]="inv.outstanding_amount > 0">
+              {{ formatCurrency(inv.outstanding_amount) }}
+            </td>
+          </ng-container>
+
+          <ng-container matColumnDef="status">
+            <th mat-header-cell *matHeaderCellDef>Status</th>
+            <td mat-cell *matCellDef="let inv">
+              <span class="status-chip" [class]="statusClass(inv.status)">{{ inv.status | titlecase }}</span>
+            </td>
+          </ng-container>
+
+          <ng-container matColumnDef="actions">
+            <th mat-header-cell *matHeaderCellDef></th>
+            <td mat-cell *matCellDef="let inv">
+              <button mat-icon-button (click)="openDetail(inv)" title="View details">
+                <mat-icon>open_in_new</mat-icon>
+              </button>
+            </td>
+          </ng-container>
+
+          <tr mat-header-row *matHeaderRowDef="displayedColumns"></tr>
+          <tr mat-row *matRowDef="let row; columns: displayedColumns;" class="clickable-row" (click)="openDetail(row)"></tr>
+        </table>
+
+        <mat-paginator
+          [length]="total()"
+          [pageSize]="pageSize"
+          [pageSizeOptions]="[25, 50, 100]"
+          (page)="onPageChange($event)">
+        </mat-paginator>
+      }
+    </mat-card-content>
+  </mat-card>
+</div>

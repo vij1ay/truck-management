@@ -1,0 +1,17 @@
+{
+    "COMMON": {
+        "WELCOME": "Welcome to Transport Admin",
+        "LOADING": "Loading...",
+        "SAVE": "Save",
+        "CANCEL": "Cancel",
+        "DELETE": "Delete",
+        "EDIT": "Edit",
+        "ACTIONS": "Actions"
+    },
+    "AUTH": {
+        "LOGIN": "Login",
+        "EMAIL": "Email",
+        "PASSWORD": "Password",
+        "LOGOUT": "Logout"
+    }
+}

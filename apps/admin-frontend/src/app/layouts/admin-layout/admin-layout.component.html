@@ -1,0 +1,113 @@
+<mat-sidenav-container class="sidenav-container">
+  <mat-sidenav #drawer class="sidenav" fixedInViewport [attr.role]="'navigation'" [mode]="'side'" [opened]="true">
+    <mat-toolbar>Transport Admin</mat-toolbar>
+    <mat-nav-list>
+      <a mat-list-item routerLink="/loads">
+        <mat-icon matListItemIcon>dashboard</mat-icon>
+        <span matListItemTitle>{{ 'COMMON.DASHBOARD' | translate }}</span>
+      </a>
+
+      <!-- Role protected: Loads Dispatch for Admins -->
+      <a mat-list-item routerLink="/loads" *appHasRole="['TenantAdmin', 'TransportAdmin']">
+        <mat-icon matListItemIcon>local_shipping</mat-icon>
+        <span matListItemTitle>Load Board</span>
+      </a>
+
+      <!-- Role protected: Bookings for Clients -->
+      <a mat-list-item routerLink="/loads" *appHasRole="['Client']">
+        <mat-icon matListItemIcon>receipt_long</mat-icon>
+        <span matListItemTitle>My Bookings</span>
+      </a>
+
+      <!-- Role protected: Tasks for Drivers -->
+      <a mat-list-item routerLink="/loads" *appHasRole="['Driver']">
+        <mat-icon matListItemIcon>assignment</mat-icon>
+        <span matListItemTitle>My Tasks</span>
+      </a>
+
+      <!-- Role protected: SuperAdmin System Mgt -->
+      <a mat-list-item routerLink="/tenants" *appHasRole="['SuperAdmin']">
+        <mat-icon matListItemIcon>domain</mat-icon>
+        <span matListItemTitle>Tenants</span>
+      </a>
+
+      <!-- Role protected: Internal Admin access -->
+      <a mat-list-item routerLink="/users" *appHasRole="['TenantAdmin', 'TransportAdmin']">
+        <mat-icon matListItemIcon>manage_accounts</mat-icon>
+        <span matListItemTitle>Users</span>
+      </a>
+
+      <!-- Role protected: Master Data accessible largely by Admins -->
+      <a mat-list-item routerLink="/trucks" *appHasRole="['TenantAdmin', 'TransportAdmin']">
+        <mat-icon matListItemIcon>directions_bus</mat-icon>
+        <span matListItemTitle>Trucks</span>
+      </a>
+
+      <a mat-list-item routerLink="/drivers" *appHasRole="['TenantAdmin', 'TransportAdmin']">
+        <mat-icon matListItemIcon>person_pin</mat-icon>
+        <span matListItemTitle>Drivers</span>
+      </a>
+
+      <a mat-list-item routerLink="/clients" *appHasRole="['TenantAdmin', 'Accounts']">
+        <mat-icon matListItemIcon>business</mat-icon>
+        <span matListItemTitle>Clients</span>
+      </a>
+
+      <!-- Role protected: Reports for Admins and Accounts -->
+      <a mat-list-item routerLink="/reports" *appHasRole="['TenantAdmin', 'TransportAdmin', 'Accounts', 'SuperAdmin']">
+        <mat-icon matListItemIcon>bar_chart</mat-icon>
+        <span matListItemTitle>Reports</span>
+      </a>
+
+      <!-- Role protected: Invoices for Admins and Accounts -->
+      <a mat-list-item routerLink="/invoices" *appHasRole="['TenantAdmin', 'TransportAdmin', 'Accounts', 'SuperAdmin']">
+        <mat-icon matListItemIcon>receipt_long</mat-icon>
+        <span matListItemTitle>Invoices</span>
+      </a>
+    </mat-nav-list>
+  </mat-sidenav>
+  <mat-sidenav-content>
+    <mat-toolbar color="primary">
+      <button type="button" aria-label="Toggle sidenav" mat-icon-button (click)="drawer.toggle()">
+        <mat-icon aria-label="Side nav toggle icon">menu</mat-icon>
+      </button>
+
+      <span class="flex-spacer"></span>
+
+      <!-- Theme Toggle -->
+      <button mat-icon-button (click)="toggleTheme()" aria-label="Toggle Theme">
+        <mat-icon>{{ themeService.isDarkTheme() ? 'light_mode' : 'dark_mode' }}</mat-icon>
+      </button>
+
+      <!-- Language Switcher -->
+      <button mat-icon-button [matMenuTriggerFor]="langMenu" aria-label="Change Language">
+        <mat-icon>language</mat-icon>
+      </button>
+      <mat-menu #langMenu="matMenu">
+        <button mat-menu-item (click)="setLanguage('en')">English</button>
+        <button mat-menu-item (click)="setLanguage('es')">Español</button>
+      </mat-menu>
+
+      <!-- User Profile (Using current user signal) -->
+      <button mat-icon-button [matMenuTriggerFor]="profileMenu" aria-label="User Profile">
+        <mat-icon>account_circle</mat-icon>
+      </button>
+      <mat-menu #profileMenu="matMenu">
+        <div class="user-info-header" *ngIf="authService.currentUser() as user">
+          <span>{{ user.first_name }} {{ user.last_name }}</span>
+          <small>{{ user.email }}</small>
+        </div>
+        <button mat-menu-item (click)="logout()">
+          <mat-icon>exit_to_app</mat-icon>
+          <span>{{ 'AUTH.LOGOUT' | translate }}</span>
+        </button>
+      </mat-menu>
+
+    </mat-toolbar>
+
+    <!-- Main Content Area -->
+    <main class="content-container">
+      <router-outlet></router-outlet>
+    </main>
+  </mat-sidenav-content>
+</mat-sidenav-container>

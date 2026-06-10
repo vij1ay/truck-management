@@ -1,0 +1,14 @@
+<h2 mat-dialog-title class="dialog-title" [ngClass]="{'destructive': data.isDestructive}">
+    {{ data.title | translate }}
+</h2>
+<mat-dialog-content>
+    <p>{{ data.message | translate }}</p>
+</mat-dialog-content>
+<mat-dialog-actions align="end">
+    <button mat-button (click)="onCancel()" cdkFocusInitial>
+        {{ data.cancelLabel || 'COMMON.CANCEL' | translate }}
+    </button>
+    <button mat-raised-button [color]="data.isDestructive ? 'warn' : 'primary'" (click)="onConfirm()">
+        {{ data.confirmLabel || 'COMMON.CONFIRM' | translate }}
+    </button>
+</mat-dialog-actions>

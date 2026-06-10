@@ -1,0 +1,69 @@
+.table-container {
+    position: relative;
+    max-height: calc(100vh - 160px);
+    /* Fill screen underneath toolbar */
+    overflow: auto;
+    border-radius: 8px;
+    background: var(--mat-sys-surface, #fff);
+}
+
+.full-width-table {
+    width: 100%;
+}
+
+.loading-shade {
+    position: absolute;
+    top: 0;
+    left: 0;
+    bottom: 0;
+    right: 0;
+    background: rgba(0, 0, 0, 0.1);
+    z-index: 10;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.spin-icon {
+    font-size: 48px;
+    width: 48px;
+    height: 48px;
+    animation: spin 1s linear infinite;
+    color: var(--mat-sys-primary, #3f51b5);
+}
+
+@keyframes spin {
+    100% {
+        transform: rotate(360deg);
+    }
+}
+
+.interactive-row {
+    transition: background 0.2s ease;
+
+    &:hover {
+        background: rgba(0, 0, 0, 0.04);
+    }
+}
+
+.actions-header,
+.actions-cell {
+    width: 60px;
+    text-align: right;
+}
+
+.no-data-cell {
+    text-align: center;
+    padding: 32px !important;
+    color: var(--mat-sys-on-surface-variant, #757575);
+    font-style: italic;
+}
+
+/* Fallback Mock badge since true component projection requires heavier *ngTemplateOutlet setup in a dynamic row */
+.mock-badge {
+    padding: 4px 8px;
+    background: #e0e0e0;
+    border-radius: 12px;
+    font-size: 11px;
+    font-weight: 600;
+}

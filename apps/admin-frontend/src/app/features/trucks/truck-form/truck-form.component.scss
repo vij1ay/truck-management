@@ -1,0 +1,52 @@
+.form-container {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    min-width: 560px;
+    padding: 8px 0;
+}
+
+.section-label {
+    font-size: 12px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    color: rgba(0, 0, 0, 0.5);
+    margin: 12px 0 4px;
+}
+
+.section-hint {
+    font-weight: 400;
+    text-transform: none;
+    letter-spacing: 0;
+    font-size: 11px;
+    color: rgba(0, 0, 0, 0.38);
+}
+
+.section-divider {
+    margin: 8px 0 4px;
+}
+
+.row {
+    display: flex;
+    gap: 16px;
+    flex-wrap: wrap;
+}
+
+.full-width {
+    width: 100%;
+}
+
+.half-width {
+    flex: 1 1 calc(50% - 8px);
+    min-width: 180px;
+}
+
+.third-width {
+    flex: 1 1 calc(33% - 8px);
+    min-width: 140px;
+}
+
+.mt-3 {
+    margin-top: 12px;
+}

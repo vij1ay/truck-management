@@ -1,0 +1,66 @@
+.status-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 4px 12px;
+    border-radius: 16px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+    white-space: nowrap;
+}
+
+/* Color Mappings leveraging Material Design 3 CSS Variables / Or fallback hexes */
+.badge-success {
+    background-color: rgba(76, 175, 80, 0.15);
+    color: #2e7d32;
+    border: 1px solid rgba(76, 175, 80, 0.3);
+}
+
+.badge-error {
+    background-color: rgba(244, 67, 54, 0.15);
+    color: #c62828;
+    border: 1px solid rgba(244, 67, 54, 0.3);
+}
+
+.badge-warning {
+    background-color: rgba(255, 152, 0, 0.15);
+    color: #e65100;
+    border: 1px solid rgba(255, 152, 0, 0.3);
+}
+
+.badge-info {
+    background-color: rgba(33, 150, 243, 0.15);
+    color: #1565c0;
+    border: 1px solid rgba(33, 150, 243, 0.3);
+}
+
+.badge-default {
+    background-color: rgba(158, 158, 158, 0.15);
+    color: #424242;
+    border: 1px solid rgba(158, 158, 158, 0.3);
+}
+
+/* Dark Mode Overrides (Assumes a wrapping .dark-theme or dark variant variables exist) */
+:host-context(.dark-theme) {
+    .badge-success {
+        color: #81c784;
+    }
+
+    .badge-error {
+        color: #e57373;
+    }
+
+    .badge-warning {
+        color: #ffb74d;
+    }
+
+    .badge-info {
+        color: #64b5f6;
+    }
+
+    .badge-default {
+        color: #e0e0e0;
+    }
+}
