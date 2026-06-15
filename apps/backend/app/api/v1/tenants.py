@@ -2,7 +2,7 @@ from typing import Annotated
 from uuid import UUID
 import math
 
-from fastapi import APIRouter, Depends, Request, Query
+from fastapi import APIRouter, Depends, Request, Query, UploadFile, File, Response
 from sqlalchemy.orm import Session
 
 from app.core.logger import get_logger
@@ -135,6 +135,55 @@ async def update_tenant(
     return _tenant_to_response(tenant)
 
 
+@router.post("/{tenant_id}/avatar", response_model=TenantResponse)
+async def upload_tenant_avatar(
+    request: Request,
+    tenant_id: UUID,
+    service: Annotated[TenantService, Depends(get_tenant_service)],
+    _: Annotated[User, Depends(require_roles("SuperAdmin"))],
+    file: Annotated[UploadFile, File()],
+):
+    """Upload (or replace) a tenant's logo. Requires SuperAdmin."""
+    logger.info(f"Upload avatar tenant_id={tenant_id}")
+    content = await file.read()
+    tenant = service.upload_avatar(
+        tenant_id=tenant_id,
+        content=content,
+        content_type=file.content_type,
+        ip_address=get_client_ip(request),
+        user_agent=request.headers.get("User-Agent"),
+    )
+    return _tenant_to_response(tenant)
+
+
+@router.delete("/{tenant_id}/avatar", response_model=TenantResponse)
+async def remove_tenant_avatar(
+    request: Request,
+    tenant_id: UUID,
+    service: Annotated[TenantService, Depends(get_tenant_service)],
+    _: Annotated[User, Depends(require_roles("SuperAdmin"))],
+):
+    """Remove a tenant's logo. Requires SuperAdmin."""
+    logger.info(f"Remove avatar tenant_id={tenant_id}")
+    tenant = service.remove_avatar(
+        tenant_id=tenant_id,
+        ip_address=get_client_ip(request),
+        user_agent=request.headers.get("User-Agent"),
+    )
+    return _tenant_to_response(tenant)
+
+
+@router.get("/{tenant_id}/avatar")
+async def get_tenant_avatar(
+    tenant_id: UUID,
+    service: Annotated[TenantService, Depends(get_tenant_service)],
+    _: Annotated[User, Depends(require_roles("SuperAdmin"))],
+):
+    """Return a tenant's logo (404 if none set). Requires SuperAdmin."""
+    content, mime_type = service.get_avatar(tenant_id)
+    return Response(content=content, media_type=mime_type)
+
+
 @router.delete("/{tenant_id}", status_code=204)
 async def delete_tenant(
     request: Request,
@@ -167,6 +216,7 @@ def _tenant_to_response(tenant) -> TenantResponse:
         max_users=tenant.max_users,
         is_active=tenant.is_active,
         settings=tenant.settings or {},
+        has_avatar=tenant.has_avatar,
         created_at=tenant.created_at,
         updated_at=tenant.updated_at,
         user_count=getattr(tenant, "user_count", None)

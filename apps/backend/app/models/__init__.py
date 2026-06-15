@@ -4,8 +4,10 @@ from app.models.role import Role, SYSTEM_ROLES
 from app.models.user import User
 from app.models.user_role import UserRole
 from app.models.refresh_token import RefreshToken
+from app.models.password_reset_token import PasswordResetToken
 from app.models.audit_log import AuditLog, EventCategory, EventType
 from app.models.truck import Truck, TruckType, TruckStatus, OwnershipType
+from app.models.truck_photo import TruckPhoto
 from app.models.driver import Driver, DriverStatus, LicenseClass
 from app.models.client import Client, ClientType
 from app.models.document import Document, DocumentType, DocumentStatus, EntityType
@@ -24,6 +26,7 @@ __all__ = [
     "User",
     "UserRole",
     "RefreshToken",
+    "PasswordResetToken",
     "AuditLog",
     "EventCategory",
     "EventType",
@@ -31,6 +34,7 @@ __all__ = [
     "TruckType",
     "TruckStatus",
     "OwnershipType",
+    "TruckPhoto",
     "Driver",
     "DriverStatus",
     "LicenseClass",

@@ -1,3 +1,4 @@
+from datetime import datetime
 from typing import Annotated
 from uuid import UUID
 import math
@@ -35,16 +36,19 @@ async def list_audit_logs(
     tenant_id: UUID | None = None,
     user_id: UUID | None = None,
     event_type: str | None = None,
-    event_category: EventCategory | None = None
+    event_category: EventCategory | None = None,
+    start_date: datetime | None = None,
+    end_date: datetime | None = None,
 ):
     """
     List audit logs with filters.
-    
+
     - SuperAdmin: can view all logs
     - TenantAdmin: can only view logs for their tenant
     """
     logger.info(
-        f"List audit logs page={page} size={size} tenant_filter={tenant_id} user_filter={user_id} category={event_category}"
+        f"List audit logs page={page} size={size} tenant_filter={tenant_id} user_filter={user_id} "
+        f"category={event_category} start={start_date} end={end_date}"
     )
     # Determine tenant filter based on role
     effective_tenant_id = None
@@ -52,14 +56,16 @@ async def list_audit_logs(
         effective_tenant_id = context.tenant_id
     elif tenant_id:
         effective_tenant_id = tenant_id
-    
+
     service = AuditService(db, effective_tenant_id)
-    
+
     logs, total = service.get_logs(
         tenant_id=effective_tenant_id,
         user_id=user_id,
         event_type=event_type,
         event_category=event_category,
+        start_date=start_date,
+        end_date=end_date,
         page=page,
         size=size
     )
@@ -109,6 +115,7 @@ def _log_to_response(log) -> AuditLogResponse:
         id=log.id,
         tenant_id=log.tenant_id,
         user_id=log.user_id,
+        user_email=log.user.email if log.user else None,
         event_type=log.event_type,
         event_category=log.event_category,
         resource_type=log.resource_type,

@@ -43,16 +43,22 @@ class LoadRepository(TenantAwareRepository[Load]):
         pickup_date_to: date | None = None,
         goods_type: str | None = None,
         search: str | None = None,
+        tenant_id: UUID | None = None,
+        include_all_tenants: bool = False,
     ) -> list[Load]:
         """Get loads with optional filters."""
         stmt = select(Load).where(Load.is_deleted == False)
-        stmt = self._apply_tenant_filter(stmt)
+        if not include_all_tenants:
+            stmt = self._apply_tenant_filter(stmt)
 
         stmt = self._apply_filters(
             stmt, status=status, client_id=client_id, driver_id=driver_id,
             pickup_date_from=pickup_date_from, pickup_date_to=pickup_date_to,
             goods_type=goods_type, search=search,
         )
+
+        if tenant_id is not None:
+            stmt = stmt.where(Load.tenant_id == tenant_id)
 
         stmt = stmt.order_by(Load.created_at.desc()).offset(skip).limit(limit)
         return list(self.db.execute(stmt).scalars().all())
@@ -66,16 +72,23 @@ class LoadRepository(TenantAwareRepository[Load]):
         pickup_date_to: date | None = None,
         goods_type: str | None = None,
         search: str | None = None,
+        tenant_id: UUID | None = None,
+        include_all_tenants: bool = False,
     ) -> int:
         """Count loads matching filters."""
         stmt = select(func.count()).select_from(Load).where(Load.is_deleted == False)
-        stmt = self._apply_tenant_filter(stmt)
+        if not include_all_tenants:
+            stmt = self._apply_tenant_filter(stmt)
 
         stmt = self._apply_filters(
             stmt, status=status, client_id=client_id, driver_id=driver_id,
             pickup_date_from=pickup_date_from, pickup_date_to=pickup_date_to,
             goods_type=goods_type, search=search,
         )
+
+        if tenant_id is not None:
+            stmt = stmt.where(Load.tenant_id == tenant_id)
+
         return self.db.execute(stmt).scalar_one()
 
     def _apply_filters(self, stmt, *, status, client_id, driver_id, pickup_date_from,

@@ -1,4 +1,4 @@
-from datetime import datetime, date
+from datetime import date
 from uuid import UUID
 from decimal import Decimal
 from typing import Optional, List
@@ -6,6 +6,8 @@ from typing import Optional, List
 from pydantic import BaseModel, field_validator
 
 from app.models.driver import DriverStatus, LicenseClass
+from app.schemas.common import LocalDateTime
+from app.schemas.truck import TruckBasic
 
 
 class DriverBase(BaseModel):
@@ -115,10 +117,18 @@ class DriverResponse(BaseModel):
     emergency_contact_name: Optional[str] = None
     emergency_contact_phone: Optional[str] = None
     notes: Optional[str] = None
-    created_at: datetime
-    updated_at: datetime
+    created_at: LocalDateTime
+    updated_at: LocalDateTime
 
     model_config = {"from_attributes": True}
+
+
+class DriverMeResponse(DriverResponse):
+    """GET /drivers/me — DriverResponse plus the truck currently assigned to this
+    driver (Truck.assigned_driver_id == driver.id), for the mobile app's Vehicle
+    Info screen. `None` if no truck is currently assigned."""
+
+    current_truck: Optional[TruckBasic] = None
 
 
 class DriverListResponse(BaseModel):

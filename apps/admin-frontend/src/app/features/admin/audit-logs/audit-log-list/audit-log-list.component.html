@@ -1,0 +1,52 @@
+<div class="view-header">
+    <div class="title-container">
+        <h1 class="mat-headline-5 m-0">Audit Log</h1>
+        <p class="mat-body-1 text-muted m-0">Track who did what, and when.</p>
+    </div>
+</div>
+
+<app-tenant-filter *ngIf="isSuperAdmin" (tenantsLoaded)="onTenantsLoaded($event)"
+    (tenantChange)="onTenantChange($event)"></app-tenant-filter>
+
+<!-- FILTER BAR -->
+<mat-card class="filter-bar">
+    <mat-form-field appearance="outline" class="filter-field">
+        <mat-label>Category</mat-label>
+        <mat-select [(ngModel)]="eventCategory" (selectionChange)="onFilterChange()">
+            <mat-option *ngFor="let opt of categoryOptions" [value]="opt.value">{{ opt.label }}</mat-option>
+        </mat-select>
+    </mat-form-field>
+
+    <mat-form-field appearance="outline" class="filter-field">
+        <mat-label>Event Type</mat-label>
+        <input matInput placeholder="e.g. LOGIN, USER_CREATED..." [(ngModel)]="eventType" (change)="onFilterChange()">
+    </mat-form-field>
+
+    <mat-form-field appearance="outline" class="filter-field">
+        <mat-label>From</mat-label>
+        <input matInput [matDatepicker]="fromPicker" [(ngModel)]="startDate" (dateChange)="onFilterChange()">
+        <mat-datepicker-toggle matIconSuffix [for]="fromPicker"></mat-datepicker-toggle>
+        <mat-datepicker #fromPicker></mat-datepicker>
+    </mat-form-field>
+
+    <mat-form-field appearance="outline" class="filter-field">
+        <mat-label>To</mat-label>
+        <input matInput [matDatepicker]="toPicker" [(ngModel)]="endDate" (dateChange)="onFilterChange()">
+        <mat-datepicker-toggle matIconSuffix [for]="toPicker"></mat-datepicker-toggle>
+        <mat-datepicker #toPicker></mat-datepicker>
+    </mat-form-field>
+
+    <button mat-stroked-button *ngIf="hasActiveFilters()" (click)="clearFilters()" class="clear-filters-btn">
+        <mat-icon>clear</mat-icon>
+        Clear Filters
+    </button>
+</mat-card>
+
+<mat-card class="table-card">
+    <div class="table-card-content">
+        <app-data-table [columns]="columns" [data]="logs" [totalItems]="totalItems" [pageSize]="pageSize"
+            [pageIndex]="pageIndex" [loading]="loading" [actions]="actions" (pageChanged)="onPageChange($event)"
+            (actionClicked)="onActionClicked($event)">
+        </app-data-table>
+    </div>
+</mat-card>

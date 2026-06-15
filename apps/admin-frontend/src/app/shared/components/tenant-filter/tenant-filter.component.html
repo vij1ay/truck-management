@@ -1,0 +1,19 @@
+<div class="filters-row">
+    <mat-form-field appearance="outline" class="tenant-filter">
+        <mat-label>Filter by Tenant</mat-label>
+        <input type="text" matInput placeholder="Search tenants…" [formControl]="tenantFilterCtrl"
+            [matAutocomplete]="tenantAuto">
+        <mat-icon matSuffix>search</mat-icon>
+        <mat-autocomplete #tenantAuto="matAutocomplete" [displayWith]="displayTenant"
+            (optionSelected)="onTenantSelected($event)">
+            <mat-option *ngFor="let tenant of (filteredTenants | async)" [value]="tenant">
+                {{ tenant.name }}<span *ngIf="tenant.domain"> ({{ tenant.domain }})</span>
+            </mat-option>
+        </mat-autocomplete>
+    </mat-form-field>
+
+    <button mat-stroked-button *ngIf="selectedTenant" (click)="clearFilter()" class="clear-filter-btn">
+        <mat-icon>close</mat-icon>
+        Clear Filter
+    </button>
+</div>

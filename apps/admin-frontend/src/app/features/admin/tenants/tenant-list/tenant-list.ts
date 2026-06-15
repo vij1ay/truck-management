@@ -9,7 +9,7 @@ import { PageEvent } from '@angular/material/paginator';
 
 import { DataTableComponent, TableColumn, TableAction } from '../../../../shared/components/data-table/data-table.component';
 import { ConfirmDialogComponent } from '../../../../shared/components/confirm-dialog/confirm-dialog.component';
-import { TenantService, Tenant } from '../services/tenant.service';
+import { TenantService, Tenant } from '../../../../core/services/tenant.service';
 import { NotificationService } from '../../../../core/services/notification.service';
 import { TenantForm } from '../tenant-form/tenant-form';
 
@@ -32,12 +32,13 @@ export class TenantList implements OnInit {
   public pageIndex = 0;
 
   public columns: TableColumn[] = [
+    { def: 'avatar', header: '', type: 'avatar', avatarEntityType: 'tenants', avatarPlaceholderIcon: 'business', sortable: false },
     { def: 'name', header: 'Name', sortable: false },
     { def: 'domain', header: 'Domain', sortable: false },
     { def: 'subscription_tier', header: 'Tier', sortable: false },
     { def: 'max_users', header: 'User Quota', sortable: false },
     { def: 'is_active', header: 'COMMON.STATUS', type: 'text', sortable: false },
-    { def: 'created_at', header: 'COMMON.CREATED_AT', type: 'date', sortable: false }
+    { def: 'created_at', header: 'COMMON.CREATED_AT', type: 'datetime', sortable: false }
   ];
 
   public actions: TableAction[] = [

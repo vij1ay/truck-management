@@ -12,6 +12,9 @@
     </div>
 </div>
 
+<app-tenant-filter *ngIf="isSuperAdmin" (tenantsLoaded)="onTenantsLoaded($event)"
+    (tenantChange)="onTenantChange($event)"></app-tenant-filter>
+
 <mat-card class="table-card">
     <div class="table-card-content">
         <app-data-table [columns]="columns" [data]="trucks" [totalItems]="totalItems" [pageSize]="pageSize"

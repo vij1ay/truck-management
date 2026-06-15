@@ -2,8 +2,9 @@ from datetime import datetime
 from uuid import UUID
 
 from sqlalchemy import select, and_, desc
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 
+from app.core.datetime_utils import utc_now
 from app.models import AuditLog, EventCategory
 from app.repositories.base import BaseRepository
 
@@ -42,7 +43,7 @@ class AuditLogRepository(BaseRepository[AuditLog]):
             ip_address=ip_address,
             user_agent=user_agent,
             extra_data=extra_data or {},
-            created_at=datetime.utcnow()
+            created_at=utc_now()
         )
         self.db.add(log)
         self.db.flush()
@@ -62,8 +63,8 @@ class AuditLogRepository(BaseRepository[AuditLog]):
         limit: int = 50
     ) -> list[AuditLog]:
         """Get audit logs with filters."""
-        stmt = select(AuditLog)
-        
+        stmt = select(AuditLog).options(joinedload(AuditLog.user))
+
         # Apply tenant filter if not SuperAdmin
         if self.tenant_id:
             stmt = stmt.where(AuditLog.tenant_id == self.tenant_id)
@@ -86,7 +87,7 @@ class AuditLogRepository(BaseRepository[AuditLog]):
             stmt = stmt.where(AuditLog.created_at <= end_date)
         
         stmt = stmt.order_by(desc(AuditLog.created_at)).offset(skip).limit(limit)
-        return list(self.db.execute(stmt).scalars().all())
+        return list(self.db.execute(stmt).unique().scalars().all())
     
     def count_logs(
         self,

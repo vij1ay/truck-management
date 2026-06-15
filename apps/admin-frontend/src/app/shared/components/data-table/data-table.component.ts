@@ -8,12 +8,18 @@ import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
 import { TranslateModule } from '@ngx-translate/core';
 import { MatMenuModule } from '@angular/material/menu';
+import { AvatarThumbComponent } from '../avatar-thumb/avatar-thumb.component';
+import { AvatarEntityType } from '../../../core/services/avatar.service';
 
 export interface TableColumn {
     def: string;      // The exact property string matching backend payload
     header: string;   // Translation key for the header
-    type?: 'text' | 'date' | 'badge' | 'action'; // Determines renderer
+    type?: 'text' | 'date' | 'datetime' | 'badge' | 'action' | 'avatar'; // Determines renderer
     sortable?: boolean;
+    /** Required when type === 'avatar' — which AvatarService entity type to fetch. */
+    avatarEntityType?: AvatarEntityType;
+    /** Placeholder icon for the 'avatar' renderer when the row has no photo. */
+    avatarPlaceholderIcon?: string;
 }
 
 export interface TableAction {
@@ -36,7 +42,8 @@ export interface TableAction {
         MatButtonModule,
         MatIconModule,
         MatMenuModule,
-        TranslateModule
+        TranslateModule,
+        AvatarThumbComponent
     ],
     templateUrl: './data-table.component.html',
     styleUrls: ['./data-table.component.scss']

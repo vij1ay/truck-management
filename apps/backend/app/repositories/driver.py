@@ -26,10 +26,13 @@ class DriverRepository(TenantAwareRepository[Driver]):
         status: DriverStatus | None = None,
         is_available: bool | None = None,
         search: str | None = None,
+        tenant_id: UUID | None = None,
+        include_all_tenants: bool = False,
     ) -> list[Driver]:
         """Get drivers with optional filters."""
         stmt = select(Driver).where(Driver.is_deleted == False)
-        stmt = self._apply_tenant_filter(stmt)
+        if not include_all_tenants:
+            stmt = self._apply_tenant_filter(stmt)
 
         if status:
             stmt = stmt.where(Driver.status == status)
@@ -46,6 +49,8 @@ class DriverRepository(TenantAwareRepository[Driver]):
                     Driver.employee_id.ilike(search_term),
                 )
             )
+        if tenant_id is not None:
+            stmt = stmt.where(Driver.tenant_id == tenant_id)
 
         stmt = stmt.order_by(Driver.created_at.desc()).offset(skip).limit(limit)
         return list(self.db.execute(stmt).scalars().all())
@@ -55,10 +60,13 @@ class DriverRepository(TenantAwareRepository[Driver]):
         status: DriverStatus | None = None,
         is_available: bool | None = None,
         search: str | None = None,
+        tenant_id: UUID | None = None,
+        include_all_tenants: bool = False,
     ) -> int:
         """Count drivers matching filters."""
         stmt = select(func.count()).select_from(Driver).where(Driver.is_deleted == False)
-        stmt = self._apply_tenant_filter(stmt)
+        if not include_all_tenants:
+            stmt = self._apply_tenant_filter(stmt)
 
         if status:
             stmt = stmt.where(Driver.status == status)
@@ -75,6 +83,8 @@ class DriverRepository(TenantAwareRepository[Driver]):
                     Driver.employee_id.ilike(search_term),
                 )
             )
+        if tenant_id is not None:
+            stmt = stmt.where(Driver.tenant_id == tenant_id)
 
         return self.db.execute(stmt).scalar_one()
 

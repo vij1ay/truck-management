@@ -1,0 +1,23 @@
+<div class="photo-gallery">
+    <div class="gallery-header">
+        <span class="gallery-label">Photos ({{ photos.length }}/{{ maxPhotos }})</span>
+        <mat-spinner *ngIf="loading" diameter="18"></mat-spinner>
+    </div>
+
+    <div class="gallery-grid">
+        <div class="gallery-tile" *ngFor="let photo of photos">
+            <img *ngIf="photo.previewUrl" [src]="photo.previewUrl" alt="Truck photo">
+            <button mat-icon-button class="remove-btn" type="button" [disabled]="loading"
+                (click)="confirmRemove(photo)" aria-label="Remove photo">
+                <mat-icon>close</mat-icon>
+            </button>
+        </div>
+
+        <div class="gallery-tile add-tile" *ngIf="photos.length < maxPhotos" (click)="triggerFileSelect()">
+            <input #fileInput type="file" accept="image/png,image/jpeg,image/webp" hidden
+                (change)="onFileSelected($event)">
+            <mat-icon>add_photo_alternate</mat-icon>
+            <span>{{ 'COMMON.ADD_NEW' | translate }}</span>
+        </div>
+    </div>
+</div>

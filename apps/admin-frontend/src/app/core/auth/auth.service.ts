@@ -24,6 +24,12 @@ export interface UserProfile {
     roles: RoleBasic[];  // Backend returns [{id, name}] objects
 }
 
+export interface ForgotPasswordResponse {
+    message: string;
+    /** Only set when the backend is running with DEBUG=true (no email service yet). */
+    reset_token?: string | null;
+}
+
 @Injectable({
     providedIn: 'root'
 })
@@ -104,5 +110,16 @@ export class AuthService {
         this.tokenService.clearTokens();
         this.currentUser.set(null);
         this.isAuthenticated.set(false);
+    }
+
+    public forgotPassword(email: string): Observable<ForgotPasswordResponse> {
+        return this.http.post<ForgotPasswordResponse>('auth/forgot-password', { email });
+    }
+
+    public resetPassword(token: string, newPassword: string): Observable<{ message: string }> {
+        return this.http.post<{ message: string }>('auth/reset-password', {
+            token,
+            new_password: newPassword,
+        });
     }
 }

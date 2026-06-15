@@ -1,0 +1,29 @@
+<div class="avatar-upload">
+    <div class="avatar-preview">
+        <img *ngIf="previewUrl" [src]="previewUrl" alt="Profile picture">
+        <mat-icon *ngIf="!previewUrl" class="avatar-placeholder">{{ placeholderIcon }}</mat-icon>
+    </div>
+
+    <div class="avatar-actions">
+        <span class="avatar-label">{{ label }}</span>
+
+        <ng-container *ngIf="entityId; else saveFirst">
+            <input #fileInput type="file" accept="image/png,image/jpeg,image/webp" hidden
+                (change)="onFileSelected($event)">
+            <div class="avatar-buttons">
+                <button mat-stroked-button type="button" [disabled]="loading" (click)="triggerFileSelect()">
+                    <mat-icon>upload</mat-icon>
+                    {{ hasAvatar ? 'Change Photo' : 'Upload Photo' }}
+                </button>
+                <button mat-button type="button" color="warn" *ngIf="hasAvatar" [disabled]="loading"
+                    (click)="confirmRemove()">
+                    <mat-icon>delete</mat-icon>
+                    Remove
+                </button>
+            </div>
+        </ng-container>
+        <ng-template #saveFirst>
+            <p class="avatar-hint">Save first to add a photo.</p>
+        </ng-template>
+    </div>
+</div>

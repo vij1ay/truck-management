@@ -5,6 +5,10 @@
 <mat-dialog-content>
     <form [formGroup]="clientForm" class="form-container">
 
+        <app-avatar-upload entityType="clients" [entityId]="data.client?.id?.toString() ?? null"
+            [hasAvatar]="data.client?.has_avatar ?? false" placeholderIcon="business"
+            (avatarChanged)="onAvatarChanged($event)"></app-avatar-upload>
+
         <mat-form-field appearance="outline" class="full-width mt-3">
             <mat-label>Company Name</mat-label>
             <input matInput formControlName="company_name" placeholder="Acme Corp">
@@ -50,6 +54,45 @@
         </mat-form-field>
 
     </form>
+
+    <!-- Portal account link — only shown when editing an existing client -->
+    <ng-container *ngIf="isEditMode">
+        <mat-divider class="mt-3"></mat-divider>
+        <div class="portal-link-section mt-3">
+            <h4>Portal Account</h4>
+
+            <ng-container *ngIf="linkedUserId; else notLinked">
+                <p class="link-status">
+                    <mat-icon color="primary">link</mat-icon>
+                    Linked to a portal (Client) account
+                    <button mat-button color="warn" [disabled]="linking" (click)="unlinkAccount()"
+                        matTooltip="Remove this client's access to the customer portal">
+                        <mat-spinner *ngIf="linking" diameter="16"></mat-spinner>
+                        <span *ngIf="!linking">Unlink</span>
+                    </button>
+                </p>
+            </ng-container>
+
+            <ng-template #notLinked>
+                <p class="link-status">
+                    <mat-icon>link_off</mat-icon>
+                    Not linked to a portal account
+                </p>
+                <form [formGroup]="linkAccountForm" class="row link-form">
+                    <mat-form-field appearance="outline" class="half-width">
+                        <mat-label>Portal account email</mat-label>
+                        <input matInput type="email" formControlName="email" placeholder="shipper@example.com">
+                        <mat-hint>Links an existing Client-role login (e.g. registered with another tenant) to this client.</mat-hint>
+                    </mat-form-field>
+                    <button mat-stroked-button color="primary" [disabled]="linkAccountForm.invalid || linking"
+                        (click)="linkAccount()">
+                        <mat-spinner *ngIf="linking" diameter="16"></mat-spinner>
+                        <span *ngIf="!linking">Link</span>
+                    </button>
+                </form>
+            </ng-template>
+        </div>
+    </ng-container>
 </mat-dialog-content>
 
 <mat-dialog-actions align="end">

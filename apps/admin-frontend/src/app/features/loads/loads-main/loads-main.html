@@ -9,6 +9,57 @@
             </div>
         </div>
 
+        <!-- SUPERADMIN TENANT FILTER -->
+        <app-tenant-filter *ngIf="isSuperAdmin" (tenantsLoaded)="onTenantsLoaded($event)"
+            (tenantChange)="onTenantChange($event)"></app-tenant-filter>
+
+        <!-- FILTER BAR -->
+        <mat-card class="filter-bar">
+            <mat-form-field appearance="outline" class="filter-search">
+                <mat-label>Search</mat-label>
+                <input matInput placeholder="Load #, origin, destination..." [value]="searchInputValue()"
+                    (input)="onSearchInput($any($event.target).value)">
+                <mat-icon matPrefix>search</mat-icon>
+            </mat-form-field>
+
+            <mat-form-field appearance="outline" class="filter-field">
+                <mat-label>Status</mat-label>
+                <mat-select [value]="statusFilter()" (selectionChange)="statusFilter.set($event.value); onFilterChange()">
+                    <mat-option value="">All Statuses</mat-option>
+                    <mat-option *ngFor="let s of loadStatuses" [value]="s">{{ s.replace('_', ' ') | titlecase }}</mat-option>
+                </mat-select>
+            </mat-form-field>
+
+            <mat-form-field appearance="outline" class="filter-field">
+                <mat-label>Client</mat-label>
+                <mat-select [value]="clientFilter()" (selectionChange)="clientFilter.set($event.value); onFilterChange()">
+                    <mat-option value="">All Clients</mat-option>
+                    <mat-option *ngFor="let c of clients()" [value]="c.id">{{ c.company_name }}</mat-option>
+                </mat-select>
+            </mat-form-field>
+
+            <mat-form-field appearance="outline" class="filter-field">
+                <mat-label>Pickup From</mat-label>
+                <input matInput [matDatepicker]="pickupFromPicker" [ngModel]="pickupFrom()"
+                    (ngModelChange)="pickupFrom.set($event); onFilterChange()">
+                <mat-datepicker-toggle matIconSuffix [for]="pickupFromPicker"></mat-datepicker-toggle>
+                <mat-datepicker #pickupFromPicker></mat-datepicker>
+            </mat-form-field>
+
+            <mat-form-field appearance="outline" class="filter-field">
+                <mat-label>Pickup To</mat-label>
+                <input matInput [matDatepicker]="pickupToPicker" [ngModel]="pickupTo()"
+                    (ngModelChange)="pickupTo.set($event); onFilterChange()">
+                <mat-datepicker-toggle matIconSuffix [for]="pickupToPicker"></mat-datepicker-toggle>
+                <mat-datepicker #pickupToPicker></mat-datepicker>
+            </mat-form-field>
+
+            <button mat-stroked-button *ngIf="hasActiveFilters()" (click)="clearFilters()" class="clear-filters-btn">
+                <mat-icon>clear</mat-icon>
+                Clear Filters
+            </button>
+        </mat-card>
+
         <mat-card class="table-card">
             <div *ngIf="loading()" class="loading-overlay">
                 <mat-spinner diameter="40"></mat-spinner>
@@ -19,6 +70,11 @@
                 <ng-container matColumnDef="load_no">
                     <th mat-header-cell *matHeaderCellDef>Load #</th>
                     <td mat-cell *matCellDef="let row">{{ row.load_no }}</td>
+                </ng-container>
+
+                <ng-container matColumnDef="tenant_name">
+                    <th mat-header-cell *matHeaderCellDef>Tenant</th>
+                    <td mat-cell *matCellDef="let row">{{ tenantName(row.tenant_id) }}</td>
                 </ng-container>
 
                 <ng-container matColumnDef="origin">
@@ -51,17 +107,21 @@
                 <ng-container matColumnDef="actions">
                     <th mat-header-cell *matHeaderCellDef>Actions</th>
                     <td mat-cell *matCellDef="let row">
-                        <button mat-icon-button color="primary" matTooltip="Approve" *ngIf="row.status === 'DRAFT'"
+                        <button mat-icon-button color="primary" matTooltip="Approve" *ngIf="row.status === 'draft'"
                             (click)="confirmLoad(row)">
                             <mat-icon>check_circle</mat-icon>
                         </button>
                         <button mat-icon-button color="accent" matTooltip="Assign Truck & Driver"
-                            *ngIf="row.status === 'CONFIRMED'" (click)="allocateLoad(row)">
+                            *ngIf="row.status === 'confirmed'" (click)="allocateLoad(row)">
                             <mat-icon>assignment_ind</mat-icon>
                         </button>
                         <button mat-icon-button color="warn" matTooltip="Cancel"
-                            *ngIf="row.status !== 'DELIVERED' && row.status !== 'CANCELLED'" (click)="rejectLoad(row)">
+                            *ngIf="row.status !== 'delivered' && row.status !== 'cancelled'" (click)="rejectLoad(row)">
                             <mat-icon>cancel</mat-icon>
+                        </button>
+                        <button mat-icon-button matTooltip="Upload Proof of Delivery"
+                            *ngIf="row.status === 'delivered'" (click)="uploadPod(row)">
+                            <mat-icon>upload_file</mat-icon>
                         </button>
                     </td>
                 </ng-container>
@@ -73,134 +133,10 @@
                     <td class="mat-cell no-data-cell" [attr.colspan]="adminColumns.length">No loads found.</td>
                 </tr>
             </table>
-        </mat-card>
-    </ng-container>
 
-    <!-- ═══════════════════════════════════════════ CLIENT BOOKING VIEW ═══════════════ -->
-    <ng-container *ngIf="isClient()">
-        <div class="view-header">
-            <div class="title-container">
-                <h1 class="mat-headline-5 m-0">My Bookings</h1>
-                <p class="mat-body-1 text-muted m-0">View your booking requests and submit new loads.</p>
-            </div>
-            <div class="actions">
-                <button mat-raised-button color="primary" (click)="showBookingForm.set(!showBookingForm())">
-                    <mat-icon>{{ showBookingForm() ? 'close' : 'add' }}</mat-icon>
-                    {{ showBookingForm() ? 'Cancel' : 'New Booking Request' }}
-                </button>
-            </div>
-        </div>
-
-        <!-- BOOKING FORM -->
-        <mat-card *ngIf="showBookingForm()" class="booking-form-card">
-            <mat-card-header>
-                <mat-card-title>New Booking Request</mat-card-title>
-                <mat-card-subtitle>Fill in the shipment details and submit your request.</mat-card-subtitle>
-            </mat-card-header>
-            <mat-card-content>
-                <form [formGroup]="bookingForm" class="booking-form">
-
-                    <div class="form-row">
-                        <mat-form-field appearance="outline" class="half-width">
-                            <mat-label>From (Origin)</mat-label>
-                            <input matInput formControlName="origin" placeholder="e.g. Mumbai">
-                            <mat-icon matSuffix>place</mat-icon>
-                        </mat-form-field>
-                        <mat-form-field appearance="outline" class="half-width">
-                            <mat-label>To (Destination)</mat-label>
-                            <input matInput formControlName="destination" placeholder="e.g. Delhi">
-                            <mat-icon matSuffix>flag</mat-icon>
-                        </mat-form-field>
-                    </div>
-
-                    <div class="form-row">
-                        <mat-form-field appearance="outline" class="half-width">
-                            <mat-label>Pickup Date</mat-label>
-                            <input matInput [matDatepicker]="picker" formControlName="pickup_date">
-                            <mat-datepicker-toggle matIconSuffix [for]="picker"></mat-datepicker-toggle>
-                            <mat-datepicker #picker></mat-datepicker>
-                        </mat-form-field>
-                        <mat-form-field appearance="outline" class="half-width">
-                            <mat-label>Goods Type</mat-label>
-                            <mat-select formControlName="goods_type">
-                                <mat-option *ngFor="let t of goodsTypes" [value]="t">{{ t }}</mat-option>
-                            </mat-select>
-                        </mat-form-field>
-                    </div>
-
-                    <div class="form-row">
-                        <mat-form-field appearance="outline" class="half-width">
-                            <mat-label>Weight (kg, optional)</mat-label>
-                            <input matInput type="number" formControlName="weight_kg" min="0">
-                        </mat-form-field>
-                        <mat-form-field appearance="outline" class="half-width">
-                            <mat-label>Truck Preference (optional)</mat-label>
-                            <input matInput formControlName="truck_preference" placeholder="e.g. Refrigerated, 10-ton">
-                        </mat-form-field>
-                    </div>
-
-                    <mat-form-field appearance="outline" class="full-width">
-                        <mat-label>Goods Description</mat-label>
-                        <input matInput formControlName="goods_description">
-                    </mat-form-field>
-
-                    <mat-form-field appearance="outline" class="full-width">
-                        <mat-label>Special Instructions / Remarks</mat-label>
-                        <textarea matInput formControlName="special_instructions" rows="3"></textarea>
-                    </mat-form-field>
-
-                    <div class="form-actions">
-                        <button mat-raised-button color="primary" type="button" (click)="submitBooking()"
-                            [disabled]="bookingForm.invalid || loading()">
-                            <mat-icon>send</mat-icon>
-                            Submit Booking Request
-                        </button>
-                    </div>
-                </form>
-            </mat-card-content>
-        </mat-card>
-
-        <!-- MY BOOKINGS TABLE -->
-        <mat-card class="table-card">
-            <div *ngIf="loading()" class="loading-overlay">
-                <mat-spinner diameter="40"></mat-spinner>
-            </div>
-
-            <table mat-table [dataSource]="loads()" class="full-width-table">
-                <ng-container matColumnDef="load_no">
-                    <th mat-header-cell *matHeaderCellDef>Booking Ref</th>
-                    <td mat-cell *matCellDef="let row">{{ row.load_no }}</td>
-                </ng-container>
-                <ng-container matColumnDef="origin">
-                    <th mat-header-cell *matHeaderCellDef>From</th>
-                    <td mat-cell *matCellDef="let row">{{ row.origin }}</td>
-                </ng-container>
-                <ng-container matColumnDef="destination">
-                    <th mat-header-cell *matHeaderCellDef>To</th>
-                    <td mat-cell *matCellDef="let row">{{ row.destination }}</td>
-                </ng-container>
-                <ng-container matColumnDef="pickup_date">
-                    <th mat-header-cell *matHeaderCellDef>Pickup Date</th>
-                    <td mat-cell *matCellDef="let row">{{ row.pickup_date | date:'mediumDate' }}</td>
-                </ng-container>
-                <ng-container matColumnDef="status">
-                    <th mat-header-cell *matHeaderCellDef>Status</th>
-                    <td mat-cell *matCellDef="let row">
-                        <span class="status-badge" [ngClass]="getStatusColor(row.status)">{{ row.status }}</span>
-                    </td>
-                </ng-container>
-                <ng-container matColumnDef="action">
-                    <th mat-header-cell *matHeaderCellDef></th>
-                    <td mat-cell *matCellDef="let row"></td>
-                </ng-container>
-
-                <tr mat-header-row *matHeaderRowDef="driverColumns"></tr>
-                <tr mat-row *matRowDef="let row; columns: driverColumns;"></tr>
-                <tr class="mat-row" *matNoDataRow>
-                    <td class="mat-cell no-data-cell" [attr.colspan]="driverColumns.length">No bookings yet. Click "New
-                        Booking Request" to get started.</td>
-                </tr>
-            </table>
+            <mat-paginator [length]="totalItems()" [pageSize]="pageSize()" [pageIndex]="pageIndex()"
+                [pageSizeOptions]="[10, 20, 50]" (page)="onPageChange($event)" showFirstLastButtons>
+            </mat-paginator>
         </mat-card>
     </ng-container>
 
@@ -246,12 +182,12 @@
                     </div>
                 </mat-card-content>
                 <mat-card-actions>
-                    <button mat-raised-button color="primary" *ngIf="load.status === 'ALLOCATED'"
+                    <button mat-raised-button color="primary" *ngIf="load.status === 'allocated'"
                         (click)="startTrip(load)">
                         <mat-icon>play_arrow</mat-icon>
                         Start Trip
                     </button>
-                    <span *ngIf="load.status === 'IN_TRANSIT'" class="in-transit-badge">
+                    <span *ngIf="load.status === 'in_transit'" class="in-transit-badge">
                         <mat-icon>directions_car</mat-icon> Trip in Progress
                     </span>
                 </mat-card-actions>

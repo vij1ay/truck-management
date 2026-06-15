@@ -1,10 +1,10 @@
-from datetime import datetime
 from typing import Generic, TypeVar, Type
 from uuid import UUID
 
 from sqlalchemy import select, func, and_
 from sqlalchemy.orm import Session
 
+from app.core.datetime_utils import utc_now
 from app.models.base import Base, BaseModel
 
 ModelType = TypeVar("ModelType", bound=Base)
@@ -69,7 +69,7 @@ class BaseRepository(Generic[ModelType]):
                 setattr(db_obj, field, value)
         
         if hasattr(db_obj, "updated_at"):
-            db_obj.updated_at = datetime.utcnow()
+            db_obj.updated_at = utc_now()
         
         self.db.flush()
         return db_obj

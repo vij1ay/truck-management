@@ -4,6 +4,7 @@ from uuid import UUID
 from sqlalchemy import select, and_, update
 from sqlalchemy.orm import Session
 
+from app.core.datetime_utils import utc_now
 from app.models import RefreshToken
 from app.repositories.base import BaseRepository
 
@@ -30,7 +31,7 @@ class RefreshTokenRepository(BaseRepository[RefreshToken]):
             and_(
                 RefreshToken.token_hash == token_hash,
                 RefreshToken.revoked == False,
-                RefreshToken.expires_at > datetime.utcnow()
+                RefreshToken.expires_at > utc_now()
             )
         )
         return self.db.execute(stmt).scalar_one_or_none()
@@ -72,7 +73,7 @@ class RefreshTokenRepository(BaseRepository[RefreshToken]):
                     RefreshToken.revoked == False
                 )
             )
-            .values(revoked=True, revoked_at=datetime.utcnow())
+            .values(revoked=True, revoked_at=utc_now())
         )
         result = self.db.execute(stmt)
         self.db.flush()
@@ -81,7 +82,7 @@ class RefreshTokenRepository(BaseRepository[RefreshToken]):
     def cleanup_expired_tokens(self) -> int:
         """Delete expired tokens (can be run periodically)."""
         stmt = select(RefreshToken).where(
-            RefreshToken.expires_at < datetime.utcnow()
+            RefreshToken.expires_at < utc_now()
         )
         expired = list(self.db.execute(stmt).scalars().all())
         count = len(expired)

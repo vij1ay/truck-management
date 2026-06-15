@@ -6,6 +6,7 @@ from app.api.v1 import loads
 from app.api.v1 import allocations
 from app.api.v1 import reports
 from app.api.v1 import invoices
+from app.api.v1 import portal
 from app.dependencies.logging import log_request
 
 router = APIRouter(dependencies=[Depends(log_request)])
@@ -24,3 +25,4 @@ router.include_router(allocations.loads_sub)
 router.include_router(allocations.avail_router)
 router.include_router(reports.router)
 router.include_router(invoices.router)
+router.include_router(portal.router)

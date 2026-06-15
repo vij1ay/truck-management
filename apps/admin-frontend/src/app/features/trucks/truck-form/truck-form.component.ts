@@ -15,6 +15,8 @@ import { TranslateModule } from '@ngx-translate/core';
 import { TruckService, Truck, TruckCreatePayload, TruckUpdatePayload } from '../services/truck.service';
 import { NotificationService } from '../../../core/services/notification.service';
 import { DocumentManagerComponent } from '../../../shared/components/document-manager/document-manager.component';
+import { AvatarUploadComponent } from '../../../shared/components/avatar-upload/avatar-upload.component';
+import { PhotoGalleryComponent } from '../../../shared/components/photo-gallery/photo-gallery.component';
 
 export interface TruckFormDialogData {
     truck?: Truck;
@@ -36,7 +38,9 @@ export interface TruckFormDialogData {
         MatIconModule,
         MatDividerModule,
         TranslateModule,
-        DocumentManagerComponent
+        DocumentManagerComponent,
+        AvatarUploadComponent,
+        PhotoGalleryComponent
     ],
     templateUrl: './truck-form.component.html',
     styleUrls: ['./truck-form.component.scss']
@@ -71,6 +75,12 @@ export class TruckFormComponent implements OnInit {
 
     public get ownershipType(): string {
         return this.truckForm?.get('ownership_type')?.value ?? '';
+    }
+
+    onAvatarChanged(hasAvatar: boolean): void {
+        if (this.data.truck) {
+            this.data.truck.has_avatar = hasAvatar;
+        }
     }
 
     constructor(

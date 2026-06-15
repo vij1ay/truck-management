@@ -9,14 +9,17 @@ import { PageEvent } from '@angular/material/paginator';
 
 import { DataTableComponent, TableColumn, TableAction } from '../../../shared/components/data-table/data-table.component';
 import { ConfirmDialogComponent } from '../../../shared/components/confirm-dialog/confirm-dialog.component';
+import { TenantFilterComponent } from '../../../shared/components/tenant-filter/tenant-filter.component';
 import { DriverFormComponent } from '../driver-form/driver-form.component';
 import { DriverService, Driver } from '../services/driver.service';
+import { Tenant } from '../../../core/services/tenant.service';
 import { NotificationService } from '../../../core/services/notification.service';
+import { PermissionService } from '../../../core/auth/permission.service';
 
 @Component({
     selector: 'app-driver-list',
     standalone: true,
-    imports: [CommonModule, MatCardModule, MatButtonModule, MatIconModule, MatDialogModule, TranslateModule, DataTableComponent],
+    imports: [CommonModule, MatCardModule, MatButtonModule, MatIconModule, MatDialogModule, TranslateModule, DataTableComponent, TenantFilterComponent],
     templateUrl: './driver-list.component.html',
     styleUrls: ['./driver-list.component.scss']
 })
@@ -24,12 +27,18 @@ export class DriverListComponent implements OnInit {
     private driverService = inject(DriverService);
     private dialog = inject(MatDialog);
     private notification = inject(NotificationService);
+    private permissionService = inject(PermissionService);
 
     public loading = false;
     public drivers: Driver[] = [];
     public totalItems = 0;
     public pageSize = 10;
     public pageIndex = 0;
+
+    // SuperAdmin sees drivers across all tenants and can filter/identify by tenant
+    public isSuperAdmin = this.permissionService.hasRole('SuperAdmin');
+    public tenants: Tenant[] = [];
+    public selectedTenant: Tenant | null = null;
 
     public columns: TableColumn[] = [
         { def: 'full_name', header: 'DRIVER.NAME', sortable: false },
@@ -59,15 +68,38 @@ export class DriverListComponent implements OnInit {
     ];
 
     ngOnInit(): void {
+        if (this.isSuperAdmin) {
+            // Insert a Tenant column right after the name so results can be told apart
+            this.columns.splice(1, 0, { def: 'tenant_name', header: 'Tenant', type: 'text', sortable: false });
+        }
+
         this.loadDrivers();
+    }
+
+    onTenantsLoaded(tenants: Tenant[]): void {
+        this.tenants = tenants;
+        if (this.drivers.length) {
+            this.drivers = this.drivers.map(d => this.withTenantName(d));
+        }
+    }
+
+    onTenantChange(tenant: Tenant | null): void {
+        this.selectedTenant = tenant;
+        this.pageIndex = 0;
+        this.loadDrivers();
+    }
+
+    private withTenantName(d: Driver): any {
+        const tenant = this.tenants.find(t => t.id === d.tenant_id);
+        return { ...d, tenant_name: tenant?.name ?? '—' };
     }
 
     loadDrivers(): void {
         this.loading = true;
         const page = this.pageIndex + 1;
-        this.driverService.getDrivers(page, this.pageSize).subscribe({
+        this.driverService.getDrivers(page, this.pageSize, undefined, this.selectedTenant?.id).subscribe({
             next: (res) => {
-                this.drivers = res.items;
+                this.drivers = this.isSuperAdmin ? res.items.map(d => this.withTenantName(d)) : res.items;
                 this.totalItems = res.total;
                 this.loading = false;
             },

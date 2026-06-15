@@ -1,0 +1,101 @@
+<div class="detail-container">
+    @if (loading()) {
+        <div class="loading-overlay"><mat-spinner diameter="48"></mat-spinner></div>
+    }
+
+    @if (shipment(); as load) {
+        <div class="detail-header">
+            <button mat-icon-button (click)="back()"><mat-icon>arrow_back</mat-icon></button>
+            <h2>{{ load.load_no }}</h2>
+            <span class="status-badge" [ngClass]="getStatusColor(load.status)">{{ load.status }}</span>
+            <span class="carrier-name"><mat-icon>local_shipping</mat-icon> {{ carrierName() }}</span>
+        </div>
+
+        <div class="detail-grid">
+            <!-- Shipment info -->
+            <mat-card class="info-card">
+                <mat-card-header><mat-card-title>Shipment Details</mat-card-title></mat-card-header>
+                <mat-card-content>
+                    <div class="info-row"><span class="info-label">Route</span><span>{{ load.origin }} → {{ load.destination }}</span></div>
+                    <div class="info-row"><span class="info-label">Pickup Date</span><span>{{ load.pickup_date | date:'mediumDate' }}</span></div>
+                    @if (load.expected_delivery_date) {
+                        <div class="info-row"><span class="info-label">Expected Delivery</span><span>{{ load.expected_delivery_date | date:'mediumDate' }}</span></div>
+                    }
+                    @if (load.actual_delivery_date) {
+                        <div class="info-row"><span class="info-label">Delivered On</span><span>{{ load.actual_delivery_date | date:'mediumDate' }}</span></div>
+                    }
+                    <div class="info-row"><span class="info-label">Goods Type</span><span>{{ load.goods_type }}</span></div>
+                    @if (load.goods_description) {
+                        <div class="info-row"><span class="info-label">Description</span><span>{{ load.goods_description }}</span></div>
+                    }
+                    @if (load.weight_kg) {
+                        <div class="info-row"><span class="info-label">Weight</span><span>{{ load.weight_kg }} kg</span></div>
+                    }
+                    @if (load.special_instructions) {
+                        <div class="info-row"><span class="info-label">Special Instructions</span><span>{{ load.special_instructions }}</span></div>
+                    }
+                    @if (load.cancellation_reason) {
+                        <div class="info-row"><span class="info-label">Cancellation Reason</span><span>{{ load.cancellation_reason }}</span></div>
+                    }
+                </mat-card-content>
+            </mat-card>
+
+            <!-- Status timeline -->
+            <mat-card class="timeline-card">
+                <mat-card-header><mat-card-title>Status Timeline</mat-card-title></mat-card-header>
+                <mat-card-content>
+                    @if (history().length === 0) {
+                        <p class="empty-state">No status history yet.</p>
+                    } @else {
+                        <div class="timeline">
+                            @for (entry of history(); track entry.id) {
+                                <div class="timeline-item">
+                                    <div class="timeline-marker" [ngClass]="getStatusColor(entry.to_status)"></div>
+                                    <div class="timeline-content">
+                                        <div class="timeline-status">
+                                            <span class="status-badge" [ngClass]="getStatusColor(entry.to_status)">{{ entry.to_status }}</span>
+                                            @if (entry.from_status) {
+                                                <span class="from-status">from {{ entry.from_status }}</span>
+                                            }
+                                        </div>
+                                        <div class="timeline-time">{{ entry.changed_at }}</div>
+                                        @if (entry.remarks) {
+                                            <div class="timeline-remarks">{{ entry.remarks }}</div>
+                                        }
+                                    </div>
+                                </div>
+                            }
+                        </div>
+                    }
+                </mat-card-content>
+            </mat-card>
+
+            <!-- Documents (e.g. Proof of Delivery) -->
+            <mat-card class="documents-card">
+                <mat-card-header><mat-card-title>Documents</mat-card-title></mat-card-header>
+                <mat-card-content>
+                    @if (documents().length === 0) {
+                        <p class="empty-state">No documents uploaded yet.</p>
+                    } @else {
+                        <div class="document-list">
+                            @for (doc of documents(); track doc.id) {
+                                <div class="document-item">
+                                    <mat-icon>description</mat-icon>
+                                    <div class="document-info">
+                                        <div class="document-name">{{ doc.file_name }}</div>
+                                        <div class="document-meta">{{ doc.document_type | uppercase }} · {{ doc.created_at }}</div>
+                                    </div>
+                                    @if (doc.file_url) {
+                                        <a mat-stroked-button [href]="doc.file_url" target="_blank" rel="noopener">
+                                            <mat-icon>download</mat-icon> Download
+                                        </a>
+                                    }
+                                </div>
+                            }
+                        </div>
+                    }
+                </mat-card-content>
+            </mat-card>
+        </div>
+    }
+</div>

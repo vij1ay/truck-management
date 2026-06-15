@@ -9,15 +9,18 @@ import { PageEvent } from '@angular/material/paginator';
 
 import { DataTableComponent, TableColumn, TableAction } from '../../../shared/components/data-table/data-table.component';
 import { ConfirmDialogComponent } from '../../../shared/components/confirm-dialog/confirm-dialog.component';
+import { TenantFilterComponent } from '../../../shared/components/tenant-filter/tenant-filter.component';
 import { TruckFormComponent } from '../truck-form/truck-form.component';
 import { TruckService, Truck } from '../services/truck.service';
+import { Tenant } from '../../../core/services/tenant.service';
 import { NotificationService } from '../../../core/services/notification.service';
+import { PermissionService } from '../../../core/auth/permission.service';
 import { StatusBadgeComponent } from '../../../shared/components/status-badge/status-badge.component';
 
 @Component({
     selector: 'app-truck-list',
     standalone: true,
-    imports: [CommonModule, MatCardModule, MatButtonModule, MatIconModule, MatDialogModule, TranslateModule, DataTableComponent],
+    imports: [CommonModule, MatCardModule, MatButtonModule, MatIconModule, MatDialogModule, TranslateModule, DataTableComponent, TenantFilterComponent],
     templateUrl: './truck-list.component.html',
     styleUrls: ['./truck-list.component.scss']
 })
@@ -25,6 +28,7 @@ export class TruckListComponent implements OnInit {
     private truckService = inject(TruckService);
     private dialog = inject(MatDialog);
     private notification = inject(NotificationService);
+    private permissionService = inject(PermissionService);
 
     public loading = false;
     public trucks: Truck[] = [];
@@ -32,12 +36,18 @@ export class TruckListComponent implements OnInit {
     public pageSize = 10;
     public pageIndex = 0;
 
+    // SuperAdmin sees trucks across all tenants and can filter/identify by tenant
+    public isSuperAdmin = this.permissionService.hasRole('SuperAdmin');
+    public tenants: Tenant[] = [];
+    public selectedTenant: Tenant | null = null;
+
     public columns: TableColumn[] = [
+        { def: 'avatar', header: '', type: 'avatar', avatarEntityType: 'trucks', avatarPlaceholderIcon: 'local_shipping', sortable: false },
         { def: 'registration_no', header: 'TRUCK.REG_NO', sortable: false },
         { def: 'truck_type', header: 'TRUCK.TYPE', sortable: false },
         { def: 'capacity_tons', header: 'TRUCK.CAPACITY', sortable: false },
         { def: 'status', header: 'COMMON.STATUS', type: 'text', sortable: false },
-        { def: 'created_at', header: 'COMMON.CREATED_AT', type: 'date', sortable: false }
+        { def: 'created_at', header: 'COMMON.CREATED_AT', type: 'datetime', sortable: false }
     ];
 
     public actions: TableAction[] = [
@@ -58,15 +68,39 @@ export class TruckListComponent implements OnInit {
     ];
 
     ngOnInit(): void {
+        if (this.isSuperAdmin) {
+            // Insert a Tenant column right after the registration number so results can be told apart
+            this.columns.splice(1, 0, { def: 'tenant_name', header: 'Tenant', type: 'text', sortable: false });
+        }
+
         this.loadTrucks();
+    }
+
+    onTenantsLoaded(tenants: Tenant[]): void {
+        this.tenants = tenants;
+        if (this.trucks.length) {
+            this.trucks = this.trucks.map(t => this.withTenantName(t));
+        }
+    }
+
+    onTenantChange(tenant: Tenant | null): void {
+        this.selectedTenant = tenant;
+        this.pageIndex = 0;
+        this.loadTrucks();
+    }
+
+    private withTenantName(truck: Truck): any {
+        const tenant = this.tenants.find(t => t.id === truck.tenant_id);
+        return { ...truck, tenant_name: tenant?.name ?? '—' };
     }
 
     loadTrucks(): void {
         this.loading = true;
         const skip = this.pageIndex * this.pageSize;
-        this.truckService.getTrucks(skip, this.pageSize).subscribe({
+        this.truckService.getTrucks(skip, this.pageSize, undefined, this.selectedTenant?.id).subscribe({
             next: (res) => {
-                this.trucks = res.items ?? res.data ?? [];
+                const items = res.items ?? res.data ?? [];
+                this.trucks = this.isSuperAdmin ? items.map(t => this.withTenantName(t)) : items;
                 this.totalItems = res.total;
                 this.loading = false;
             },

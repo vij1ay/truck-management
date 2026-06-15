@@ -41,11 +41,11 @@ export interface DocumentCreatePayload {
 export class DocumentService {
     private http = inject(HttpClient);
 
-    getDocumentsByEntity(entityPlural: 'trucks' | 'drivers' | 'clients', entityId: number | string): Observable<PaginatedResponse<Document>> {
+    getDocumentsByEntity(entityPlural: 'trucks' | 'drivers' | 'clients' | 'loads', entityId: number | string): Observable<PaginatedResponse<Document>> {
         return this.http.get<PaginatedResponse<Document>>(`${entityPlural}/${entityId}/documents`);
     }
 
-    addDocumentToEntity(entityPlural: 'trucks' | 'drivers' | 'clients', entityId: number | string, payload: DocumentCreatePayload): Observable<Document> {
+    addDocumentToEntity(entityPlural: 'trucks' | 'drivers' | 'clients' | 'loads', entityId: number | string, payload: DocumentCreatePayload): Observable<Document> {
         return this.http.post<Document>(`${entityPlural}/${entityId}/documents`, payload);
     }
 

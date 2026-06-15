@@ -5,11 +5,15 @@ import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
+import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
+import { MatDividerModule } from '@angular/material/divider';
+import { MatTooltipModule } from '@angular/material/tooltip';
 import { CommonModule } from '@angular/common';
 import { TranslateModule } from '@ngx-translate/core';
 
 import { ClientService, Client } from '../services/client.service';
 import { NotificationService } from '../../../core/services/notification.service';
+import { AvatarUploadComponent } from '../../../shared/components/avatar-upload/avatar-upload.component';
 
 export interface ClientFormDialogData {
     client?: Client;
@@ -26,7 +30,11 @@ export interface ClientFormDialogData {
         MatInputModule,
         MatButtonModule,
         MatIconModule,
-        TranslateModule
+        MatProgressSpinnerModule,
+        MatDividerModule,
+        MatTooltipModule,
+        TranslateModule,
+        AvatarUploadComponent
     ],
     templateUrl: './client-form.component.html',
     styleUrls: ['./client-form.component.scss']
@@ -37,7 +45,19 @@ export class ClientFormComponent implements OnInit {
     private notification = inject(NotificationService);
 
     public clientForm!: FormGroup;
+    public linkAccountForm!: FormGroup;
     public loading = false;
+    public linking = false;
+
+    /** Tracks the linked-account state locally so the dialog reflects link/unlink
+     * actions immediately without needing to be reopened. */
+    public linkedUserId: string | null = null;
+
+    onAvatarChanged(hasAvatar: boolean): void {
+        if (this.data.client) {
+            this.data.client.has_avatar = hasAvatar;
+        }
+    }
 
     public get isEditMode(): boolean {
         return !!this.data?.client;
@@ -57,7 +77,7 @@ export class ClientFormComponent implements OnInit {
                 [Validators.required, Validators.email]
             ],
             phone: [
-                this.data?.client?.phone || '', 
+                this.data?.client?.phone || '',
                 [Validators.required, Validators.pattern(/^\+?91[\s-]?\d{10}$|^\d{10}$/)]
             ],
             gst_no: [
@@ -65,6 +85,43 @@ export class ClientFormComponent implements OnInit {
                 [Validators.required]
             ],
             address: [this.data?.client?.address || '', Validators.required]
+        });
+
+        this.linkedUserId = this.data?.client?.user_id ?? null;
+        this.linkAccountForm = this.fb.group({
+            email: ['', [Validators.required, Validators.email]],
+        });
+    }
+
+    /** Link this client to an existing portal (Client-role) account by email —
+     * how a shipper already registered with another tenant gains a relationship
+     * with this tenant too. */
+    linkAccount(): void {
+        if (this.linkAccountForm.invalid || !this.data?.client) return;
+
+        this.linking = true;
+        this.clientService.linkPortalAccount(this.data.client.id, this.linkAccountForm.value.email).subscribe({
+            next: (res) => {
+                this.linking = false;
+                this.linkedUserId = res.user_id;
+                this.linkAccountForm.reset();
+                this.notification.showSuccess('Portal account linked.');
+            },
+            error: () => this.linking = false,
+        });
+    }
+
+    unlinkAccount(): void {
+        if (!this.data?.client) return;
+
+        this.linking = true;
+        this.clientService.unlinkPortalAccount(this.data.client.id).subscribe({
+            next: () => {
+                this.linking = false;
+                this.linkedUserId = null;
+                this.notification.showSuccess('Portal account unlinked.');
+            },
+            error: () => this.linking = false,
         });
     }
 

@@ -7,6 +7,7 @@ from jose import JWTError, jwt
 from passlib.context import CryptContext
 
 from app.config import get_settings
+from app.core.datetime_utils import utc_now
 
 settings = get_settings()
 
@@ -43,14 +44,14 @@ def create_access_token(
     if expires_delta is None:
         expires_delta = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
     
-    expire = datetime.utcnow() + expires_delta
-    
+    expire = utc_now() + expires_delta
+
     payload = {
         "sub": str(user_id),
         "tenant_id": str(tenant_id) if tenant_id else None,
         "role": role,
         "exp": expire,
-        "iat": datetime.utcnow(),
+        "iat": utc_now(),
         "jti": str(uuid.uuid4()),  # Unique token ID for revocation
         "type": "access"
     }
@@ -72,13 +73,13 @@ def create_refresh_token(
     if expires_delta is None:
         expires_delta = timedelta(days=settings.REFRESH_TOKEN_EXPIRE_DAYS)
     
-    expires_at = datetime.utcnow() + expires_delta
-    
+    expires_at = utc_now() + expires_delta
+
     payload = {
         "sub": str(user_id),
         "tenant_id": str(tenant_id) if tenant_id else None,
         "exp": expires_at,
-        "iat": datetime.utcnow(),
+        "iat": utc_now(),
         "jti": str(uuid.uuid4()),
         "type": "refresh"
     }
@@ -128,4 +129,4 @@ class TokenPayload:
     @property
     def is_expired(self) -> bool:
         """Check if the token is expired."""
-        return datetime.utcnow() > self.exp
+        return utc_now() > self.exp

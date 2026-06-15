@@ -9,14 +9,17 @@ from app.core.exceptions import (
     NotFoundException,
     ForbiddenException,
 )
-from app.models import Truck, TruckStatus, EventCategory
-from app.repositories import TruckRepository, DocumentRepository
+from app.core.avatar_storage import validate_image, save_avatar, delete_avatar, read_avatar
+from app.models import Truck, TruckStatus, TruckPhoto, EventCategory
+from app.repositories import TruckRepository, DocumentRepository, TruckPhotoRepository
 from app.schemas.truck import TruckCreate, TruckUpdate
 from app.services.audit_service import AuditService
 
 
 class TruckService:
     """Service for truck management operations."""
+
+    MAX_PHOTOS = 6
 
     def __init__(
         self,
@@ -31,6 +34,7 @@ class TruckService:
         self.is_superadmin = is_superadmin
         self.truck_repo = TruckRepository(db, tenant_id)
         self.doc_repo = DocumentRepository(db, tenant_id)
+        self.photo_repo = TruckPhotoRepository(db, tenant_id)
         self.audit_service = AuditService(db, tenant_id)
 
     def get_truck(self, truck_id: UUID) -> Truck:
@@ -42,6 +46,148 @@ class TruckService:
             raise ForbiddenException("Cannot access truck from another tenant")
         return truck
 
+    def upload_avatar(
+        self,
+        truck_id: UUID,
+        content: bytes,
+        content_type: str | None,
+        ip_address: str | None = None,
+        user_agent: str | None = None,
+    ) -> Truck:
+        """Validate, store, and attach a profile picture to a truck."""
+        truck = self.get_truck(truck_id)
+        ext = validate_image(content, content_type)
+
+        old_path = truck.avatar_path
+        truck.avatar_path = save_avatar("trucks", content, ext)
+        self.db.flush()
+        delete_avatar(old_path)
+
+        self.audit_service.log_event(
+            event_type="TRUCK_AVATAR_UPDATED",
+            event_category=EventCategory.user_mgmt,
+            user_id=self.current_user_id,
+            tenant_id=truck.tenant_id,
+            resource_type="truck",
+            resource_id=truck.id,
+            ip_address=ip_address,
+            user_agent=user_agent,
+        )
+        return truck
+
+    def remove_avatar(
+        self,
+        truck_id: UUID,
+        ip_address: str | None = None,
+        user_agent: str | None = None,
+    ) -> Truck:
+        """Remove a truck's profile picture, if any."""
+        truck = self.get_truck(truck_id)
+        delete_avatar(truck.avatar_path)
+        truck.avatar_path = None
+        self.db.flush()
+
+        self.audit_service.log_event(
+            event_type="TRUCK_AVATAR_REMOVED",
+            event_category=EventCategory.user_mgmt,
+            user_id=self.current_user_id,
+            tenant_id=truck.tenant_id,
+            resource_type="truck",
+            resource_id=truck.id,
+            ip_address=ip_address,
+            user_agent=user_agent,
+        )
+        return truck
+
+    def get_avatar(self, truck_id: UUID) -> tuple[bytes, str]:
+        """Read a truck's stored profile picture."""
+        truck = self.get_truck(truck_id)
+        if not truck.avatar_path:
+            raise NotFoundException("No avatar set for this truck")
+        return read_avatar(truck.avatar_path)
+
+    def list_photos(self, truck_id: UUID) -> list[TruckPhoto]:
+        """List a truck's photo gallery (ordered by position)."""
+        self.get_truck(truck_id)
+        return self.photo_repo.get_all_by_truck(truck_id)
+
+    def upload_photo(
+        self,
+        truck_id: UUID,
+        content: bytes,
+        content_type: str | None,
+        ip_address: str | None = None,
+        user_agent: str | None = None,
+    ) -> TruckPhoto:
+        """Validate, store, and add a photo to a truck's gallery (max MAX_PHOTOS)."""
+        truck = self.get_truck(truck_id)
+
+        count = self.photo_repo.count_by_truck(truck_id)
+        if count >= self.MAX_PHOTOS:
+            raise BadRequestException(f"Maximum of {self.MAX_PHOTOS} photos allowed per truck")
+
+        ext = validate_image(content, content_type)
+        photo_path = save_avatar("truck_photos", content, ext)
+
+        photo = self.photo_repo.create({
+            "tenant_id": truck.tenant_id,
+            "truck_id": truck.id,
+            "photo_path": photo_path,
+            "position": count,
+        })
+        self.db.flush()
+
+        self.audit_service.log_event(
+            event_type="TRUCK_PHOTO_ADDED",
+            event_category=EventCategory.user_mgmt,
+            user_id=self.current_user_id,
+            tenant_id=truck.tenant_id,
+            resource_type="truck_photo",
+            resource_id=photo.id,
+            ip_address=ip_address,
+            user_agent=user_agent,
+        )
+        return photo
+
+    def remove_photo(
+        self,
+        truck_id: UUID,
+        photo_id: UUID,
+        ip_address: str | None = None,
+        user_agent: str | None = None,
+    ) -> None:
+        """Remove a photo from a truck's gallery."""
+        truck = self.get_truck(truck_id)
+
+        photo = self.photo_repo.get_by_id(photo_id)
+        if not photo or photo.truck_id != truck.id:
+            raise NotFoundException("Photo not found")
+
+        delete_avatar(photo.photo_path)
+        self.db.delete(photo)
+        self.db.flush()
+
+        self.audit_service.log_event(
+            event_type="TRUCK_PHOTO_REMOVED",
+            event_category=EventCategory.user_mgmt,
+            user_id=self.current_user_id,
+            tenant_id=truck.tenant_id,
+            resource_type="truck_photo",
+            resource_id=photo_id,
+            ip_address=ip_address,
+            user_agent=user_agent,
+        )
+
+    def get_photo(self, truck_id: UUID, photo_id: UUID) -> tuple[bytes, str]:
+        """Read one of a truck's gallery photos."""
+        truck = self.get_truck(truck_id)
+
+        photo = self.photo_repo.get_by_id(photo_id)
+        if not photo or photo.truck_id != truck.id:
+            raise NotFoundException("Photo not found")
+
+        return read_avatar(photo.photo_path)
+
     def get_trucks(
         self,
         page: int = 1,
@@ -51,6 +197,7 @@ class TruckService:
         ownership_type=None,
         is_available: bool | None = None,
         search: str | None = None,
+        tenant_id: UUID | None = None,
     ) -> tuple[list[Truck], int]:
         """Get paginated list of trucks."""
         skip = (page - 1) * size
@@ -58,12 +205,14 @@ class TruckService:
             skip=skip, limit=size,
             status=status, truck_type=truck_type,
             ownership_type=ownership_type,
-            is_available=is_available, search=search,
+            is_available=is_available, search=search, tenant_id=tenant_id,
+            include_all_tenants=self.is_superadmin,
         )
         total = self.truck_repo.count_filtered(
             status=status, truck_type=truck_type,
             ownership_type=ownership_type,
-            is_available=is_available, search=search,
+            is_available=is_available, search=search, tenant_id=tenant_id,
+            include_all_tenants=self.is_superadmin,
         )
         return trucks, total
 

@@ -57,6 +57,15 @@
           <div class="kpi-sub">Available / Active</div>
         </mat-card-content>
       </mat-card>
+
+      <mat-card class="kpi-card kpi-warning">
+        <mat-card-content>
+          <mat-icon class="kpi-icon kpi-outstanding">warning_amber</mat-icon>
+          <div class="kpi-value">{{ formatCurrency(s.overdue_invoices_amount) }}</div>
+          <div class="kpi-label">Overdue Invoices</div>
+          <div class="kpi-sub">{{ s.overdue_invoices_count | number }} invoice(s) past due</div>
+        </mat-card-content>
+      </mat-card>
     </div>
   }
 

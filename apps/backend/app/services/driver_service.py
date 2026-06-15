@@ -42,6 +42,17 @@ class DriverService:
             raise ForbiddenException("Cannot access driver from another tenant")
         return driver
 
+    def get_driver_by_user_id(self, user_id: UUID) -> Driver:
+        """Get the Driver record linked to a login (User.id), for GET /drivers/me.
+
+        Not tenant-scoped on lookup — `user_id` comes from the caller's own JWT,
+        so there's nothing to leak across tenants (mirrors Client.get_by_user_id
+        used by the customer portal's /portal/me)."""
+        driver = self.driver_repo.get_by_user_id(user_id)
+        if not driver:
+            raise NotFoundException("No driver profile linked to this account")
+        return driver
+
     def get_drivers(
         self,
         page: int = 1,
@@ -49,15 +60,18 @@ class DriverService:
         status=None,
         is_available: bool | None = None,
         search: str | None = None,
+        tenant_id: UUID | None = None,
     ) -> tuple[list[Driver], int]:
         """Get paginated list of drivers."""
         skip = (page - 1) * size
         drivers = self.driver_repo.get_all_filtered(
             skip=skip, limit=size,
-            status=status, is_available=is_available, search=search,
+            status=status, is_available=is_available, search=search, tenant_id=tenant_id,
+            include_all_tenants=self.is_superadmin,
         )
         total = self.driver_repo.count_filtered(
-            status=status, is_available=is_available, search=search,
+            status=status, is_available=is_available, search=search, tenant_id=tenant_id,
+            include_all_tenants=self.is_superadmin,
         )
         return drivers, total
 

@@ -16,6 +16,7 @@ class DocumentType(str, enum.Enum):
     DRIVER_LICENSE = "driver_license"
     MEDICAL = "medical"
     CONTRACT = "contract"
+    POD = "pod"
     OTHER = "other"
 
 
@@ -30,6 +31,7 @@ class EntityType(str, enum.Enum):
     TRUCK = "truck"
     DRIVER = "driver"
     CLIENT = "client"
+    LOAD = "load"
 
 
 class Document(BaseModel):
@@ -63,6 +65,13 @@ class Document(BaseModel):
     file_size_bytes = Column(BigInteger, nullable=True)
     mime_type = Column(String(100), nullable=True)
 
+    # Relative path under UPLOAD_DIR for files uploaded via the app (e.g. the
+    # Client Portal's "Upload Document" — see `app/core/avatar_storage.py`,
+    # `save_avatar("load_documents", ...)`). Distinct from `file_url`, which is
+    # an admin-entered external link and never written by upload endpoints.
+    # Never serialized directly — only via `has_file` (mirrors `avatar_path`).
+    storage_path = Column(String(512), nullable=True)
+
     # Validity
     issue_date = Column(Date, nullable=True)
     expiry_date = Column(Date, nullable=True)
@@ -83,6 +92,11 @@ class Document(BaseModel):
 
     def __repr__(self):
         return f"<Document {self.document_type} for {self.entity_type}:{self.entity_id}>"
+
+    @property
+    def has_file(self) -> bool:
+        """Whether a file was uploaded for this document (vs. metadata-only)."""
+        return bool(self.storage_path)
 
     @property
     def is_expired(self) -> bool:

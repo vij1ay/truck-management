@@ -2,6 +2,7 @@ from sqlalchemy import Column, String, Boolean, DateTime, ForeignKey
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
 
+from app.core.datetime_utils import utc_now
 from app.models.base import Base, UUIDMixin, TimestampMixin
 
 
@@ -38,6 +39,5 @@ class RefreshToken(Base, UUIDMixin, TimestampMixin):
     
     def revoke(self):
         """Revoke the refresh token."""
-        from datetime import datetime
         self.revoked = True
-        self.revoked_at = datetime.utcnow()
+        self.revoked_at = utc_now()

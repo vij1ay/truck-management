@@ -26,7 +26,20 @@ class User(BaseModel):
     first_name = Column(String(100), nullable=False)
     last_name = Column(String(100), nullable=False)
     phone = Column(String(20), nullable=True)
-    
+
+    # Preferences — IANA tz name (e.g. "Asia/Kolkata"); NULL falls back to
+    # settings.DEFAULT_TIMEZONE (see app.core.timezone_context)
+    timezone = Column(String(64), nullable=True)
+
+    # Preferred UI language (ISO 639-1 code, e.g. "en", "hi", "ta"); NULL falls
+    # back to the client's default language. Validated against
+    # app.schemas.common.SUPPORTED_LANGUAGES.
+    preferred_language = Column(String(10), nullable=True)
+
+    # Profile picture — relative path under settings.UPLOAD_DIR, served via
+    # GET /users/{id}/avatar (see app/core/avatar_storage.py). Never exposed directly.
+    avatar_path = Column(String(512), nullable=True)
+
     # Status
     is_active = Column(Boolean, default=True, nullable=False)
     is_verified = Column(Boolean, default=False, nullable=False)
@@ -61,6 +74,11 @@ class User(BaseModel):
     def full_name(self) -> str:
         """Return the user's full name."""
         return f"{self.first_name} {self.last_name}"
+
+    @property
+    def has_avatar(self) -> bool:
+        """Whether a profile picture has been uploaded for this user."""
+        return bool(self.avatar_path)
     
     @property
     def roles(self) -> list:

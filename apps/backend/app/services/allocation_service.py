@@ -1,8 +1,9 @@
-from datetime import date, datetime, timedelta
+from datetime import date, timedelta
 from uuid import UUID
 
 from sqlalchemy.orm import Session
 
+from app.core.datetime_utils import utc_now
 from app.core.exceptions import (
     BadRequestException,
     ConflictException,
@@ -196,7 +197,7 @@ class AllocationService:
         self.db.flush()
 
         # Update load columns
-        now = datetime.utcnow()
+        now = utc_now()
         load.allocated_truck_id = truck.id
         load.allocated_driver_id = driver.id
         load.allocated_at = now
@@ -287,7 +288,7 @@ class AllocationService:
 
             old_alloc.deactivate(
                 deactivated_by_id=self.current_user_id,
-                at=datetime.utcnow()
+                at=utc_now()
             )
             self.db.flush()
 
@@ -307,7 +308,7 @@ class AllocationService:
         # Update load FK fields
         load.allocated_truck_id = new_truck.id
         load.allocated_driver_id = new_driver.id
-        load.allocated_at = datetime.utcnow()
+        load.allocated_at = utc_now()
         load.allocated_by = self.current_user_id
 
         # Mark new resources busy
@@ -356,7 +357,7 @@ class AllocationService:
 
             alloc.deactivate(
                 deactivated_by_id=self.current_user_id,
-                at=datetime.utcnow()
+                at=utc_now()
             )
             self.db.flush()
 

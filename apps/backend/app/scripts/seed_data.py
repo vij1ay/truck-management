@@ -11,7 +11,6 @@ Usage:
 
 import os
 import sys
-from datetime import datetime
 
 # Add the app directory to the path
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
@@ -20,6 +19,7 @@ from sqlalchemy.orm import Session
 
 from app.config import get_settings
 from app.core.database import SessionLocal, engine
+from app.core.datetime_utils import utc_now
 from app.core.security import hash_password
 from app.models import Base, Role, User, UserRole, SYSTEM_ROLES
 
@@ -76,11 +76,11 @@ def seed_superadmin(db: Session, roles: dict[str, Role]) -> User | None:
         tenant_id=None,  # SuperAdmin has no tenant
         is_active=True,
         is_verified=True,
-        password_changed_at=datetime.utcnow()
+        password_changed_at=utc_now()
     )
     db.add(user)
     db.flush()
-    
+
     # Assign SuperAdmin role
     superadmin_role = roles.get("SuperAdmin")
     if superadmin_role:
@@ -88,7 +88,7 @@ def seed_superadmin(db: Session, roles: dict[str, Role]) -> User | None:
             user_id=user.id,
             role_id=superadmin_role.id,
             tenant_id=None,
-            assigned_at=datetime.utcnow()
+            assigned_at=utc_now()
         )
         db.add(user_role)
         db.flush()

@@ -22,6 +22,8 @@ class SummaryResponse(BaseModel):
     available_drivers: int
     loads_this_month: int
     revenue_this_month: float
+    overdue_invoices_count: int
+    overdue_invoices_amount: float
 
 
 class LoadTrendPoint(BaseModel):

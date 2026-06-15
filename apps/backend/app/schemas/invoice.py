@@ -1,10 +1,11 @@
-from datetime import date, datetime
+from datetime import date
 from decimal import Decimal
 from uuid import UUID
 
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, Field
 
 from app.models.invoice import InvoiceStatus, PaymentMethod
+from app.schemas.common import LocalDateTime
 
 
 # ── Payment schemas ────────────────────────────────────────────────────────────
@@ -25,7 +26,7 @@ class PaymentResponse(BaseModel):
     reference_no: str | None
     notes: str | None
     recorded_by: UUID | None
-    created_at: datetime
+    created_at: LocalDateTime
 
     model_config = {"from_attributes": True}
 
@@ -40,12 +41,6 @@ class InvoiceCreate(BaseModel):
     subtotal: Decimal = Field(ge=0, decimal_places=2)
     tax_rate: Decimal = Field(ge=0, le=100, decimal_places=2, default=Decimal("0"))
     notes: str | None = None
-
-    @model_validator(mode="after")
-    def compute_tax(self):
-        self.tax_amount = (self.subtotal * self.tax_rate / 100).quantize(Decimal("0.01"))
-        self.total_amount = self.subtotal + self.tax_amount
-        return self
 
 
 class InvoiceUpdate(BaseModel):
@@ -69,8 +64,8 @@ class InvoiceResponse(BaseModel):
     paid_amount: Decimal
     outstanding_amount: float
     notes: str | None
-    created_at: datetime
-    updated_at: datetime
+    created_at: LocalDateTime
+    updated_at: LocalDateTime
     client_name: str | None = None
     load_no: str | None = None
     payments: list[PaymentResponse] = []
@@ -84,3 +79,8 @@ class InvoiceListResponse(BaseModel):
     page: int
     size: int
     pages: int
+
+
+class OverdueRefreshResponse(BaseModel):
+    updated: list[str]
+    count: int

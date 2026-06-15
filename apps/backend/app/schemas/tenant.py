@@ -1,15 +1,15 @@
-from datetime import datetime
 from uuid import UUID
 
-from pydantic import BaseModel, EmailStr, Field, field_validator
+from pydantic import BaseModel, Field, field_validator
 import re
 
 from app.models.tenant import SubscriptionTier
+from app.schemas.common import LocalDateTime, UserEmail
 
 
 class TenantBase(BaseModel):
     """Base tenant schema."""
-    
+
     name: str = Field(..., min_length=2, max_length=255)
     domain: str | None = Field(None, max_length=255)
     subscription_tier: SubscriptionTier = SubscriptionTier.trial
@@ -18,8 +18,8 @@ class TenantBase(BaseModel):
 
 class TenantCreate(TenantBase):
     """Schema for creating a new tenant with admin user."""
-    
-    admin_email: EmailStr
+
+    admin_email: UserEmail
     admin_password: str = Field(..., min_length=8, max_length=128)
     admin_first_name: str = Field(..., min_length=1, max_length=100)
     admin_last_name: str = Field(..., min_length=1, max_length=100)
@@ -56,10 +56,11 @@ class TenantResponse(TenantBase):
     id: UUID
     is_active: bool
     settings: dict = Field(default_factory=dict)
-    created_at: datetime
-    updated_at: datetime
+    has_avatar: bool = False
+    created_at: LocalDateTime
+    updated_at: LocalDateTime
     user_count: int | None = None
-    
+
     model_config = {"from_attributes": True}
 
 

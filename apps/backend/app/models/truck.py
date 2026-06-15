@@ -88,6 +88,10 @@ class Truck(BaseModel):
 
     notes = Column(Text, nullable=True)
 
+    # Profile picture — relative path under settings.UPLOAD_DIR, served via
+    # GET /trucks/{id}/avatar (see app/core/avatar_storage.py). Never exposed directly.
+    avatar_path = Column(String(512), nullable=True)
+
     # Relationships
     tenant = relationship("Tenant", back_populates="trucks")
     assigned_driver = relationship("Driver", back_populates="trucks", foreign_keys=[assigned_driver_id])
@@ -103,6 +107,14 @@ class Truck(BaseModel):
     )
     allocations = relationship("LoadAllocation", back_populates="truck")
 
+    # Photo gallery (max 6, enforced in TruckService)
+    photos = relationship(
+        "TruckPhoto",
+        back_populates="truck",
+        order_by="TruckPhoto.position",
+        cascade="all, delete-orphan"
+    )
+
     def __repr__(self):
         return f"<Truck {self.registration_no}>"
 
@@ -110,3 +122,8 @@ class Truck(BaseModel):
     def is_operational(self) -> bool:
         """Check if truck can be allocated to a load."""
         return self.status == TruckStatus.ACTIVE and self.is_available and not self.is_deleted
+
+    @property
+    def has_avatar(self) -> bool:
+        """Whether a profile picture has been uploaded for this truck."""
+        return bool(self.avatar_path)

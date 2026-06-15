@@ -5,15 +5,17 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, Request, Query
 from sqlalchemy.orm import Session
 
+from app.core.exceptions import ForbiddenException
 from app.core.logger import get_logger
 from app.dependencies.auth import get_current_user_context, require_roles, CurrentUser
 from app.dependencies.database import get_db
 from app.middleware.tenant_context import get_client_ip
 from app.models import User, Driver, DriverStatus, EntityType
+from app.repositories import DriverRepository
 from app.schemas import (
-    DriverCreate, DriverUpdate, DriverResponse, DriverListResponse,
+    DriverCreate, DriverUpdate, DriverResponse, DriverMeResponse, DriverListResponse,
     DriverAvailabilityUpdate,
-    DocumentCreate, DocumentResponse, DocumentListResponse,
+    DocumentCreate, DocumentResponse, DocumentListResponse, TruckBasic,
 )
 from app.schemas.driver import DriverLocationUpdate, AssignedTruckBasic
 from app.services import DriverService, DocumentService
@@ -55,14 +57,15 @@ async def list_drivers(
     status: DriverStatus | None = None,
     is_available: bool | None = None,
     search: str | None = None,
+    tenant_id: UUID | None = None,
 ):
     """List drivers with optional filters (paginated)."""
     logger.info(
-        f"List drivers page={page} size={size} status={status} available={is_available}"
+        f"List drivers page={page} size={size} status={status} available={is_available} tenant_id={tenant_id}"
     )
     drivers, total = service.get_drivers(
         page=page, size=size, status=status,
-        is_available=is_available, search=search,
+        is_available=is_available, search=search, tenant_id=tenant_id,
     )
     return DriverListResponse(
         items=[_to_response(d) for d in drivers],
@@ -86,6 +89,22 @@ async def create_driver(
         user_agent=request.headers.get("User-Agent"),
     )
     return _to_response(driver)
+
+
+@router.get("/me", response_model=DriverMeResponse)
+async def get_my_driver_profile(
+    service: Annotated[DriverService, Depends(get_driver_service)],
+    context: Annotated[CurrentUser, Depends(get_current_user_context)],
+):
+    """
+    Get the driver profile linked to the current login.
+
+    Used by the mobile driver app's Profile / Vehicle Info screens. 404 if this
+    account has no linked Driver record.
+    """
+    logger.info(f"Get my driver profile user_id={context.user_id}")
+    driver = service.get_driver_by_user_id(context.user_id)
+    return _to_me_response(driver)
 
 
 @router.get("/{driver_id}", response_model=DriverResponse)
@@ -173,18 +192,41 @@ async def update_driver_location(
     return _to_response(driver)
 
 
+def _check_driver_self_access(
+    driver_id: UUID,
+    context: CurrentUser,
+    db: Session,
+) -> None:
+    """A Driver may only view their own documents (Driver.user_id ==
+    context.user_id). Admin/Accounts roles are unrestricted (already
+    tenant-scoped via DriverService.get_driver)."""
+    if context.is_superadmin or any(
+        r in context.roles for r in ("TenantAdmin", "TransportAdmin", "Accounts")
+    ):
+        return
+
+    driver_repo = DriverRepository(db, context.tenant_id)
+    driver = driver_repo.get_by_user_id(context.user_id)
+    if not driver or driver.id != driver_id:
+        raise ForbiddenException("Cannot access documents for this driver")
+
+
 @router.get("/{driver_id}/documents", response_model=DocumentListResponse)
 async def list_driver_documents(
     driver_id: UUID,
+    db: Annotated[Session, Depends(get_db)],
     service: Annotated[DriverService, Depends(get_driver_service)],
     doc_service: Annotated[DocumentService, Depends(get_doc_service)],
-    _: Annotated[User, Depends(require_roles("SuperAdmin", "TenantAdmin", "TransportAdmin", "Accounts"))],
+    context: Annotated[CurrentUser, Depends(get_current_user_context)],
+    _: Annotated[User, Depends(require_roles("SuperAdmin", "TenantAdmin", "TransportAdmin", "Accounts", "Driver"))],
     page: int = Query(1, ge=1),
     size: int = Query(50, ge=1, le=100),
 ):
-    """List all documents for a specific driver."""
+    """List all documents for a specific driver — a Driver may only list
+    their own documents."""
     logger.info(f"List driver documents driver_id={driver_id} page={page} size={size}")
     service.get_driver(driver_id)
+    _check_driver_self_access(driver_id, context, db)
     docs, total = doc_service.get_documents(
         page=page, size=size,
         entity_type=EntityType.DRIVER,
@@ -254,4 +296,19 @@ def _to_response(driver: Driver) -> DriverResponse:
         notes=driver.notes,
         created_at=driver.created_at,
         updated_at=driver.updated_at,
+    )
+
+
+def _to_me_response(driver: Driver) -> DriverMeResponse:
+    """DriverResponse fields plus the truck currently assigned to this driver."""
+    current_truck = driver.trucks[0] if driver.trucks else None
+    return DriverMeResponse(
+        **_to_response(driver).model_dump(),
+        current_truck=TruckBasic(
+            id=current_truck.id,
+            registration_no=current_truck.registration_no,
+            make=current_truck.make,
+            model=current_truck.model,
+            has_avatar=current_truck.has_avatar,
+        ) if current_truck else None,
     )

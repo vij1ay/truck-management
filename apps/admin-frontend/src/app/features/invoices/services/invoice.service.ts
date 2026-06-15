@@ -55,15 +55,21 @@ export interface RecordPaymentPayload {
     notes?: string;
 }
 
+export interface OverdueRefreshResponse {
+    updated: string[];
+    count: number;
+}
+
 @Injectable({ providedIn: 'root' })
 export class InvoiceService {
     private http = inject(HttpClient);
     private base = 'invoices';
 
-    getInvoices(page = 1, size = 50, status?: InvoiceStatus, clientId?: string): Observable<InvoiceListResponse> {
+    getInvoices(page = 1, size = 50, status?: InvoiceStatus, clientId?: string, tenantId?: string): Observable<InvoiceListResponse> {
         let params = new HttpParams().set('page', page).set('size', size);
         if (status) params = params.set('status', status);
         if (clientId) params = params.set('client_id', clientId);
+        if (tenantId) params = params.set('tenant_id', tenantId);
         return this.http.get<InvoiceListResponse>(this.base, { params });
     }
 
@@ -81,5 +87,13 @@ export class InvoiceService {
 
     recordPayment(invoiceId: string, payload: RecordPaymentPayload): Observable<PaymentItem> {
         return this.http.post<PaymentItem>(`${this.base}/${invoiceId}/payments`, payload);
+    }
+
+    downloadPdf(id: string): Observable<Blob> {
+        return this.http.get(`${this.base}/${id}/pdf`, { responseType: 'blob' });
+    }
+
+    refreshOverdue(): Observable<OverdueRefreshResponse> {
+        return this.http.post<OverdueRefreshResponse>(`${this.base}/refresh-overdue`, {});
     }
 }

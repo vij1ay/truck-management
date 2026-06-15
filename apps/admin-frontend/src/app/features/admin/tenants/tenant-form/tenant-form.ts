@@ -9,8 +9,9 @@ import { MatDividerModule } from '@angular/material/divider';
 import { CommonModule } from '@angular/common';
 import { TranslateModule } from '@ngx-translate/core';
 
-import { TenantService, Tenant } from '../services/tenant.service';
+import { TenantService, Tenant } from '../../../../core/services/tenant.service';
 import { NotificationService } from '../../../../core/services/notification.service';
+import { AvatarUploadComponent } from '../../../../shared/components/avatar-upload/avatar-upload.component';
 
 export interface TenantFormDialogData {
   tenant?: Tenant;
@@ -28,7 +29,8 @@ export interface TenantFormDialogData {
     MatSelectModule,
     MatButtonModule,
     MatDividerModule,
-    TranslateModule
+    TranslateModule,
+    AvatarUploadComponent
   ],
   templateUrl: './tenant-form.html',
   styleUrl: './tenant-form.scss',
@@ -43,6 +45,12 @@ export class TenantForm implements OnInit {
 
   public get isEditMode(): boolean {
     return !!this.data?.tenant;
+  }
+
+  onAvatarChanged(hasAvatar: boolean): void {
+    if (this.data.tenant) {
+      this.data.tenant.has_avatar = hasAvatar;
+    }
   }
 
   public tiers = ['trial', 'basic', 'premium', 'enterprise'];

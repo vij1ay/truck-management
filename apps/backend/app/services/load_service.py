@@ -1,8 +1,9 @@
-from datetime import date, datetime
+from datetime import date
 from uuid import UUID
 
 from sqlalchemy.orm import Session
 
+from app.core.datetime_utils import utc_now
 from app.core.exceptions import (
     BadRequestException,
     ConflictException,
@@ -58,7 +59,7 @@ class LoadService:
             to_status=to_status,
             changed_by=self.current_user_id,
             remarks=remarks,
-            changed_at=datetime.utcnow(),
+            changed_at=utc_now(),
         )
         self.db.add(entry)
 
@@ -79,7 +80,15 @@ class LoadService:
             driver = driver_repo.get_by_user_id(self.current_user_id)
             if not driver or load.allocated_driver_id != driver.id:
                 raise ForbiddenException("Cannot access load not assigned to you")
-                
+
+        # If Client, can only access their own loads
+        if "Client" in self.current_user_roles and not self._is_tenant_admin():
+            from app.repositories.client import ClientRepository
+            client_repo = ClientRepository(self.db, self.tenant_id)
+            client = client_repo.get_by_user_id(self.current_user_id)
+            if not client or load.client_id != client.id:
+                raise ForbiddenException("Cannot access load not assigned to your account")
+
         return load
 
     def get_loads(
@@ -92,6 +101,7 @@ class LoadService:
         pickup_date_to: date | None = None,
         goods_type: str | None = None,
         search: str | None = None,
+        tenant_id: UUID | None = None,
     ) -> tuple[list[Load], int]:
         """Return paginated, filtered loads."""
         driver_id = None
@@ -108,12 +118,14 @@ class LoadService:
             skip=skip, limit=size,
             status=status, client_id=client_id, driver_id=driver_id,
             pickup_date_from=pickup_date_from, pickup_date_to=pickup_date_to,
-            goods_type=goods_type, search=search,
+            goods_type=goods_type, search=search, tenant_id=tenant_id,
+            include_all_tenants=self.is_superadmin,
         )
         total = self.load_repo.count_filtered(
             status=status, client_id=client_id, driver_id=driver_id,
             pickup_date_from=pickup_date_from, pickup_date_to=pickup_date_to,
-            goods_type=goods_type, search=search,
+            goods_type=goods_type, search=search, tenant_id=tenant_id,
+            include_all_tenants=self.is_superadmin,
         )
         return loads, total
 
@@ -247,7 +259,7 @@ class LoadService:
         if to_status == LoadStatus.CANCELLED:
             load.cancelled_by = self.current_user_id
             load.cancellation_reason = remarks
-            load.cancelled_at = datetime.utcnow()
+            load.cancelled_at = utc_now()
         elif to_status == LoadStatus.DELIVERED:
             load.actual_delivery_date = date.today()
 
@@ -294,6 +306,35 @@ class LoadService:
             ip_address=ip_address,
             user_agent=user_agent,
         )
+
+    def add_checkpoint(
+        self,
+        load_id: UUID,
+        label: str,
+        ip_address: str | None = None,
+        user_agent: str | None = None,
+    ) -> Load:
+        """Record an informational checkpoint (e.g. "Reached Pickup", "Loaded")
+        on a load's timeline — appends a `LoadHistory` row with
+        `from_status == to_status` (no state-machine transition)."""
+        load = self.get_load(load_id)
+
+        self._add_history(load, from_status=load.status, to_status=load.status, remarks=label)
+
+        self.audit_service.log_event(
+            event_type="LOAD_CHECKPOINT_ADDED",
+            event_category=EventCategory.user_mgmt,
+            user_id=self.current_user_id,
+            tenant_id=self.tenant_id,
+            resource_type="Load",
+            resource_id=load_id,
+            new_value={"label": label},
+            ip_address=ip_address,
+            user_agent=user_agent,
+        )
+
+        self.db.commit()
+        return self.load_repo.get_active_by_id(load_id)
 
     def delete_load(
         self,

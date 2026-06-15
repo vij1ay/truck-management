@@ -6,6 +6,10 @@
     <form [formGroup]="tenantForm" class="dialog-form">
         <h3 class="mat-subtitle-2 mb-2">Tenant Details</h3>
 
+        <app-avatar-upload entityType="tenants" [entityId]="data.tenant?.id ?? null"
+            [hasAvatar]="data.tenant?.has_avatar ?? false" placeholderIcon="business"
+            (avatarChanged)="onAvatarChanged($event)"></app-avatar-upload>
+
         <mat-form-field appearance="outline" class="full-width">
             <mat-label>Company Name</mat-label>
             <input matInput formControlName="name" placeholder="e.g. Acme Logistics">

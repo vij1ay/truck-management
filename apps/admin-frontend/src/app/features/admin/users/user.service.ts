@@ -16,10 +16,17 @@ export interface User {
     tenant_id: string;
     is_active: boolean;
     is_verified: boolean;
+    timezone: string;
+    client_id: string | null;
     last_login_at: string | null;
     created_at: string;
     updated_at: string;
     roles: RoleBasic[];
+    has_avatar?: boolean;
+}
+
+export interface TimezoneListResponse {
+    timezones: string[];
 }
 
 export interface UserListResponse {
@@ -47,13 +54,14 @@ export class UserService {
     private http = inject(HttpClient);
     private endpoint = 'users';
 
-    getUsers(page: number = 1, size: number = 10, search?: string, isActive?: boolean): Observable<UserListResponse> {
+    getUsers(page: number = 1, size: number = 10, search?: string, isActive?: boolean, tenantId?: string): Observable<UserListResponse> {
         let params = new HttpParams()
             .set('page', page.toString())
             .set('size', size.toString());
 
         if (search) params = params.set('search', search);
         if (isActive !== undefined) params = params.set('is_active', isActive);
+        if (tenantId) params = params.set('tenant_id', tenantId);
 
         return this.http.get<UserListResponse>(this.endpoint, { params });
     }
@@ -85,5 +93,9 @@ export class UserService {
     assignRole(userId: string, roleName: string): Observable<User> {
         // Backend actually expects role_id realistically, but we will pass roleName if it accepts it or we must fetch roles first. Let's just create raw payload and we'll check backend schemas.
         return this.http.post<User>(`${this.endpoint}/${userId}/roles`, { role_name: roleName });
+    }
+
+    getTimezones(): Observable<TimezoneListResponse> {
+        return this.http.get<TimezoneListResponse>(`${this.endpoint}/timezones`);
     }
 }

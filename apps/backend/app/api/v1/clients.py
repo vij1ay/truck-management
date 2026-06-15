@@ -2,7 +2,7 @@ import math
 from typing import Annotated
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, Request, Query
+from fastapi import APIRouter, Depends, Request, Query, UploadFile, File, Response
 from sqlalchemy.orm import Session
 
 from app.core.logger import get_logger
@@ -12,6 +12,7 @@ from app.middleware.tenant_context import get_client_ip
 from app.models import User, Client, ClientType, EntityType
 from app.schemas import (
     ClientCreate, ClientUpdate, ClientResponse, ClientListResponse,
+    LinkPortalAccountRequest,
     DocumentCreate, DocumentResponse, DocumentListResponse,
 )
 from app.services import ClientService, DocumentService
@@ -53,12 +54,13 @@ async def list_clients(
     client_type: ClientType | None = None,
     is_active: bool | None = None,
     search: str | None = None,
+    tenant_id: UUID | None = None,
 ):
     """List clients with optional filters (paginated)."""
-    logger.info(f"List clients page={page} size={size} client_type={client_type} active={is_active}")
+    logger.info(f"List clients page={page} size={size} client_type={client_type} active={is_active} tenant_id={tenant_id}")
     clients, total = service.get_clients(
         page=page, size=size, client_type=client_type,
-        is_active=is_active, search=search,
+        is_active=is_active, search=search, tenant_id=tenant_id,
     )
     return ClientListResponse(
         items=clients, total=total, page=page, size=size,
@@ -111,6 +113,53 @@ async def update_client(
     )
 
 
+@router.post("/{client_id}/avatar", response_model=ClientResponse)
+async def upload_client_avatar(
+    request: Request,
+    client_id: UUID,
+    service: Annotated[ClientService, Depends(get_client_service)],
+    _: Annotated[User, Depends(require_roles("SuperAdmin", "TenantAdmin", "TransportAdmin"))],
+    file: Annotated[UploadFile, File()],
+):
+    """Upload (or replace) a client's profile picture / logo."""
+    logger.info(f"Upload avatar client_id={client_id}")
+    content = await file.read()
+    return service.upload_avatar(
+        client_id=client_id,
+        content=content,
+        content_type=file.content_type,
+        ip_address=get_client_ip(request),
+        user_agent=request.headers.get("User-Agent"),
+    )
+
+
+@router.delete("/{client_id}/avatar", response_model=ClientResponse)
+async def remove_client_avatar(
+    request: Request,
+    client_id: UUID,
+    service: Annotated[ClientService, Depends(get_client_service)],
+    _: Annotated[User, Depends(require_roles("SuperAdmin", "TenantAdmin", "TransportAdmin"))],
+):
+    """Remove a client's profile picture / logo."""
+    logger.info(f"Remove avatar client_id={client_id}")
+    return service.remove_avatar(
+        client_id=client_id,
+        ip_address=get_client_ip(request),
+        user_agent=request.headers.get("User-Agent"),
+    )
+
+
+@router.get("/{client_id}/avatar")
+async def get_client_avatar(
+    client_id: UUID,
+    service: Annotated[ClientService, Depends(get_client_service)],
+    _: Annotated[User, Depends(require_roles("SuperAdmin", "TenantAdmin", "TransportAdmin", "Accounts", "Client"))],
+):
+    """Return a client's profile picture / logo (404 if none set)."""
+    content, mime_type = service.get_avatar(client_id)
+    return Response(content=content, media_type=mime_type)
+
+
 @router.delete("/{client_id}", status_code=204)
 async def delete_client(
     request: Request,
@@ -121,6 +170,43 @@ async def delete_client(
     """Soft delete a client. Requires TenantAdmin."""
     logger.info(f"Delete client client_id={client_id}")
     service.delete_client(
+        client_id=client_id,
+        ip_address=get_client_ip(request),
+        user_agent=request.headers.get("User-Agent"),
+    )
+
+
+@router.post("/{client_id}/link-portal-account", response_model=ClientResponse)
+async def link_portal_account(
+    request: Request,
+    client_id: UUID,
+    data: LinkPortalAccountRequest,
+    service: Annotated[ClientService, Depends(get_client_service)],
+    _: Annotated[User, Depends(require_roles("SuperAdmin", "TenantAdmin"))],
+):
+    """Link this client to an existing portal (Client-role) account by email.
+
+    Lets a shipper who already has a portal login with another tenant gain a
+    relationship — and "My Shipments" visibility — with this tenant too.
+    """
+    logger.info(f"Link portal account client_id={client_id} email={data.email}")
+    return service.link_portal_account(
+        client_id=client_id, email=data.email,
+        ip_address=get_client_ip(request),
+        user_agent=request.headers.get("User-Agent"),
+    )
+
+
+@router.delete("/{client_id}/link-portal-account", response_model=ClientResponse)
+async def unlink_portal_account(
+    request: Request,
+    client_id: UUID,
+    service: Annotated[ClientService, Depends(get_client_service)],
+    _: Annotated[User, Depends(require_roles("SuperAdmin", "TenantAdmin"))],
+):
+    """Remove the linked portal account from this client."""
+    logger.info(f"Unlink portal account client_id={client_id}")
+    return service.unlink_portal_account(
         client_id=client_id,
         ip_address=get_client_ip(request),
         user_agent=request.headers.get("User-Agent"),

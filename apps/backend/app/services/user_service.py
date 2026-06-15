@@ -1,8 +1,9 @@
-from datetime import datetime
 from uuid import UUID
 
 from sqlalchemy.orm import Session
 
+from app.config import get_settings
+from app.core.datetime_utils import utc_now
 from app.core.exceptions import (
     BadRequestException,
     ConflictException,
@@ -10,15 +11,16 @@ from app.core.exceptions import (
     ForbiddenException,
 )
 from app.core.security import hash_password
+from app.core.avatar_storage import validate_image, save_avatar, delete_avatar, read_avatar
 from app.models import User, EventCategory
-from app.repositories import UserRepository, RoleRepository, TenantRepository
+from app.repositories import UserRepository, RoleRepository, TenantRepository, ClientRepository
 from app.schemas import UserCreate, UserUpdate
 from app.services.audit_service import AuditService
 
 
 class UserService:
     """Service for user management operations."""
-    
+
     def __init__(
         self,
         db: Session,
@@ -33,42 +35,127 @@ class UserService:
         self.user_repo = UserRepository(db, None if is_superadmin else tenant_id)
         self.role_repo = RoleRepository(db)
         self.tenant_repo = TenantRepository(db)
+        self.client_repo = ClientRepository(db, tenant_id)
         self.audit_service = AuditService(db, tenant_id)
+
+    def _link_client(self, user_id: UUID, client_id: UUID | None) -> None:
+        """(Re)link a Client (company) record to this user's portal login, or unlink."""
+        # Unlink whatever client currently points at this user (if any). Flush immediately —
+        # the unique index on clients.user_id would otherwise reject the new link below
+        # while both rows still reference this user_id within the same flush.
+        existing = self.client_repo.get_by_user_id(user_id)
+        if existing and (client_id is None or existing.id != client_id):
+            existing.user_id = None
+            self.db.flush()
+
+        if client_id is None:
+            return
+
+        client = self.client_repo.get_active_by_id(client_id)
+        if not client:
+            raise BadRequestException("Invalid client_id")
+        if client.user_id is not None and client.user_id != user_id:
+            raise ConflictException("This client is already linked to another user")
+
+        client.user_id = user_id
     
     def get_user(self, user_id: UUID) -> User:
         """Get a user by ID."""
         user = self.user_repo.get_with_roles(user_id)
         if not user:
             raise NotFoundException("User not found")
-        
+
         # Check tenant access
         if not self.is_superadmin and user.tenant_id != self.tenant_id:
             raise ForbiddenException("Cannot access user from another tenant")
-        
+
         return user
+
+    def upload_avatar(
+        self,
+        user_id: UUID,
+        content: bytes,
+        content_type: str | None,
+        ip_address: str | None = None,
+        user_agent: str | None = None,
+    ) -> User:
+        """Validate, store, and attach a profile picture to a user."""
+        user = self.get_user(user_id)
+        ext = validate_image(content, content_type)
+
+        old_path = user.avatar_path
+        user.avatar_path = save_avatar("users", content, ext)
+        self.db.flush()
+        delete_avatar(old_path)
+
+        self.audit_service.log_event(
+            event_type="USER_AVATAR_UPDATED",
+            event_category=EventCategory.user_mgmt,
+            user_id=self.current_user_id,
+            tenant_id=user.tenant_id,
+            resource_type="user",
+            resource_id=user.id,
+            ip_address=ip_address,
+            user_agent=user_agent,
+        )
+        return user
+
+    def remove_avatar(
+        self,
+        user_id: UUID,
+        ip_address: str | None = None,
+        user_agent: str | None = None,
+    ) -> User:
+        """Remove a user's profile picture, if any."""
+        user = self.get_user(user_id)
+        delete_avatar(user.avatar_path)
+        user.avatar_path = None
+        self.db.flush()
+
+        self.audit_service.log_event(
+            event_type="USER_AVATAR_REMOVED",
+            event_category=EventCategory.user_mgmt,
+            user_id=self.current_user_id,
+            tenant_id=user.tenant_id,
+            resource_type="user",
+            resource_id=user.id,
+            ip_address=ip_address,
+            user_agent=user_agent,
+        )
+        return user
+
+    def get_avatar(self, user_id: UUID) -> tuple[bytes, str]:
+        """Read a user's stored profile picture."""
+        user = self.get_user(user_id)
+        if not user.avatar_path:
+            raise NotFoundException("No avatar set for this user")
+        return read_avatar(user.avatar_path)
     
     def get_users(
         self,
         page: int = 1,
         size: int = 50,
         is_active: bool | None = None,
-        search: str | None = None
+        search: str | None = None,
+        tenant_id: UUID | None = None
     ) -> tuple[list[User], int]:
         """Get paginated list of users."""
         skip = (page - 1) * size
-        
+
         users = self.user_repo.get_all_with_roles(
             skip=skip,
             limit=size,
             is_active=is_active,
-            search=search
+            search=search,
+            tenant_id=tenant_id
         )
-        
+
         total = self.user_repo.count_filtered(
             is_active=is_active,
-            search=search
+            search=search,
+            tenant_id=tenant_id
         )
-        
+
         return users, total
     
     def create_user(
@@ -124,6 +211,7 @@ class UserService:
             "last_name": data.last_name,
             "phone": data.phone,
             "tenant_id": user_tenant_id,
+            "timezone": data.timezone or get_settings().DEFAULT_TIMEZONE,
             "is_active": True,
             "is_verified": False,
         }
@@ -138,7 +226,11 @@ class UserService:
                 tenant_id=user_tenant_id,
                 assigned_by=self.current_user_id
             )
-        
+
+        # Link to a Client (company) record for portal access, if specified
+        if data.client_id is not None:
+            self._link_client(user.id, data.client_id)
+
         # Log audit
         self.audit_service.log_user_created(
             actor_id=self.current_user_id,
@@ -170,17 +262,22 @@ class UserService:
             "last_name": user.last_name,
             "phone": user.phone,
             "is_active": user.is_active,
+            "timezone": user.timezone,
         }
         
         # Update fields
         update_data = data.model_dump(exclude_unset=True)
-        
+
+        # Re-link / unlink the Client record (handled separately — not a User column)
+        if "client_id" in update_data:
+            self._link_client(user.id, update_data.pop("client_id"))
+
         # Check if activation status is changing
         activation_changed = False
         if "is_active" in update_data and update_data["is_active"] != user.is_active:
             activation_changed = True
             was_active = user.is_active
-        
+
         self.user_repo.update(user, update_data)
         
         # Log audit
@@ -411,7 +508,7 @@ class UserService:
         
         # Update password
         user.password_hash = hash_password(new_password)
-        user.password_changed_at = datetime.utcnow()
+        user.password_changed_at = utc_now()
         
         # Revoke all refresh tokens (force re-login)
         from app.repositories import RefreshTokenRepository

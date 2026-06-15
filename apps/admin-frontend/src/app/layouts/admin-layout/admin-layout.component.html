@@ -13,12 +13,6 @@
         <span matListItemTitle>Load Board</span>
       </a>
 
-      <!-- Role protected: Bookings for Clients -->
-      <a mat-list-item routerLink="/loads" *appHasRole="['Client']">
-        <mat-icon matListItemIcon>receipt_long</mat-icon>
-        <span matListItemTitle>My Bookings</span>
-      </a>
-
       <!-- Role protected: Tasks for Drivers -->
       <a mat-list-item routerLink="/loads" *appHasRole="['Driver']">
         <mat-icon matListItemIcon>assignment</mat-icon>
@@ -63,6 +57,12 @@
       <a mat-list-item routerLink="/invoices" *appHasRole="['TenantAdmin', 'TransportAdmin', 'Accounts', 'SuperAdmin']">
         <mat-icon matListItemIcon>receipt_long</mat-icon>
         <span matListItemTitle>Invoices</span>
+      </a>
+
+      <!-- Role protected: Audit Log for SuperAdmin/TenantAdmin -->
+      <a mat-list-item routerLink="/audit-logs" *appHasRole="['SuperAdmin', 'TenantAdmin']">
+        <mat-icon matListItemIcon>history</mat-icon>
+        <span matListItemTitle>Audit Log</span>
       </a>
     </mat-nav-list>
   </mat-sidenav>

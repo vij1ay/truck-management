@@ -1,0 +1,14 @@
+.filters-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 16px;
+
+    .tenant-filter {
+        width: 320px;
+    }
+
+    .clear-filter-btn {
+        margin-bottom: 1.25em;
+    }
+}

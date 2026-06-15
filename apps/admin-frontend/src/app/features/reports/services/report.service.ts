@@ -23,6 +23,8 @@ export interface ReportSummary {
     available_drivers: number;
     loads_this_month: number;
     revenue_this_month: number;
+    overdue_invoices_count: number;
+    overdue_invoices_amount: number;
 }
 
 export interface LoadTrendPoint {

@@ -5,6 +5,7 @@ from sqlalchemy import (
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
 
+from app.core.datetime_utils import utc_now
 from app.models.base import Base, UUIDMixin, TimestampMixin
 
 
@@ -98,5 +99,5 @@ class LoadAllocation(Base, UUIDMixin, TimestampMixin):
     def deactivate(self, deactivated_by_id, at: datetime | None = None) -> None:
         """Mark this allocation as inactive."""
         self.is_active = False
-        self.deactivated_at = at or datetime.utcnow()
+        self.deactivated_at = at or utc_now()
         self.deactivated_by = deactivated_by_id

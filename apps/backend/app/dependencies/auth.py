@@ -14,7 +14,9 @@ from app.core.exceptions import (
     AccountLockedException,
     TenantInactiveException,
 )
+from app.core.datetime_utils import utc_now
 from app.core.security import decode_token, TokenPayload
+from app.core.timezone_context import set_current_timezone
 from app.dependencies.database import get_db
 from app.models import User
 from app.repositories import UserRepository
@@ -65,8 +67,7 @@ async def get_current_user(
     
     # Check if user is locked
     if user.locked_until:
-        from datetime import datetime
-        if user.locked_until > datetime.utcnow():
+        if user.locked_until > utc_now():
             raise AccountLockedException(
                 f"Account is locked until {user.locked_until.isoformat()}"
             )
@@ -74,7 +75,10 @@ async def get_current_user(
     # Check tenant status (if user belongs to a tenant)
     if user.tenant and not user.tenant.is_active:
         raise TenantInactiveException()
-    
+
+    # Make this user's timezone available to response serializers (LocalDateTime)
+    set_current_timezone(user.timezone)
+
     return user
 
 

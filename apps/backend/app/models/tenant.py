@@ -28,7 +28,11 @@ class Tenant(BaseModel):
     )
     max_users = Column(Integer, default=10, nullable=False)
     settings = Column(JSONB, default=dict, nullable=False)
-    
+
+    # Profile picture / logo — relative path under settings.UPLOAD_DIR, served via
+    # GET /tenants/{id}/avatar (see app/core/avatar_storage.py). Never exposed directly.
+    avatar_path = Column(String(512), nullable=True)
+
     # Relationships
     users = relationship("User", back_populates="tenant", lazy="dynamic")
     user_roles = relationship("UserRole", back_populates="tenant", lazy="dynamic")
@@ -41,3 +45,8 @@ class Tenant(BaseModel):
 
     def __repr__(self):
         return f"<Tenant {self.name}>"
+
+    @property
+    def has_avatar(self) -> bool:
+        """Whether a logo has been uploaded for this tenant."""
+        return bool(self.avatar_path)

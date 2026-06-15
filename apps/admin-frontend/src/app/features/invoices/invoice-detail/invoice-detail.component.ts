@@ -13,6 +13,7 @@ import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { InvoiceService, InvoiceItem } from '../services/invoice.service';
 import { PaymentDialogComponent } from '../payment-dialog/payment-dialog.component';
 import { NotificationService } from '../../../core/services/notification.service';
+import { downloadBlob } from '../../../shared/utils/download.util';
 
 @Component({
     selector: 'app-invoice-detail',
@@ -78,6 +79,14 @@ export class InvoiceDetailComponent implements OnInit {
 
     back(): void {
         this.router.navigate(['/invoices']);
+    }
+
+    downloadPdf(): void {
+        const inv = this.invoice()!;
+        this.invoiceService.downloadPdf(inv.id).subscribe({
+            next: (blob) => downloadBlob(blob, `${inv.invoice_no}.pdf`),
+            error: () => this.notification.showError('Failed to download invoice PDF'),
+        });
     }
 
     formatCurrency(value: number): string {

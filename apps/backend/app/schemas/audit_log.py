@@ -4,6 +4,7 @@ from uuid import UUID
 from pydantic import BaseModel, Field
 
 from app.models.audit_log import EventCategory
+from app.schemas.common import LocalDateTime
 
 
 class AuditLogResponse(BaseModel):
@@ -12,6 +13,7 @@ class AuditLogResponse(BaseModel):
     id: UUID
     tenant_id: UUID | None = None
     user_id: UUID | None = None
+    user_email: str | None = None
     event_type: str
     event_category: EventCategory
     resource_type: str | None = None
@@ -21,8 +23,8 @@ class AuditLogResponse(BaseModel):
     ip_address: str | None = None
     user_agent: str | None = None
     extra_data: dict = Field(default_factory=dict)
-    created_at: datetime
-    
+    created_at: LocalDateTime
+
     model_config = {"from_attributes": True}
 
 

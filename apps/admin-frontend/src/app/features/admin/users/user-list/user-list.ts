@@ -9,14 +9,26 @@ import { PageEvent } from '@angular/material/paginator';
 
 import { DataTableComponent, TableColumn, TableAction } from '../../../../shared/components/data-table/data-table.component';
 import { ConfirmDialogComponent } from '../../../../shared/components/confirm-dialog/confirm-dialog.component';
+import { TenantFilterComponent } from '../../../../shared/components/tenant-filter/tenant-filter.component';
 import { UserService, User, UserListResponse } from '../user.service';
+import { Tenant } from '../../../../core/services/tenant.service';
 import { NotificationService } from '../../../../core/services/notification.service';
+import { PermissionService } from '../../../../core/auth/permission.service';
 import { UserForm } from '../user-form/user-form';
 
 @Component({
   selector: 'app-user-list',
   standalone: true,
-  imports: [CommonModule, MatCardModule, MatButtonModule, MatIconModule, MatDialogModule, TranslateModule, DataTableComponent],
+  imports: [
+    CommonModule,
+    MatCardModule,
+    MatButtonModule,
+    MatIconModule,
+    MatDialogModule,
+    TranslateModule,
+    DataTableComponent,
+    TenantFilterComponent
+  ],
   templateUrl: './user-list.html',
   styleUrl: './user-list.scss',
 })
@@ -24,6 +36,7 @@ export class UserList implements OnInit {
   private userService = inject(UserService);
   private dialog = inject(MatDialog);
   private notification = inject(NotificationService);
+  private permissionService = inject(PermissionService);
 
   public loading = false;
   public users: User[] = [];
@@ -31,7 +44,13 @@ export class UserList implements OnInit {
   public pageSize = 10;
   public pageIndex = 0;
 
+  // SuperAdmin sees users across all tenants and can filter/identify by tenant
+  public isSuperAdmin = this.permissionService.hasRole('SuperAdmin');
+  public tenants: Tenant[] = [];
+  public selectedTenant: Tenant | null = null;
+
   public columns: TableColumn[] = [
+    { def: 'avatar', header: '', type: 'avatar', avatarEntityType: 'users', avatarPlaceholderIcon: 'account_circle', sortable: false },
     { def: 'first_name', header: 'First Name', sortable: false },
     { def: 'last_name', header: 'Last Name', sortable: false },
     { def: 'email', header: 'Email', sortable: false },
@@ -62,22 +81,50 @@ export class UserList implements OnInit {
   ];
 
   ngOnInit(): void {
+    if (this.isSuperAdmin) {
+      // Insert a Tenant column right after Email so results can be told apart
+      this.columns.splice(3, 0, { def: 'tenant_name', header: 'Tenant', type: 'text', sortable: false });
+    }
+
     this.loadUsers();
+  }
+
+  onTenantsLoaded(tenants: Tenant[]): void {
+    this.tenants = tenants;
+    // Re-map any already-loaded users now that tenant names are available
+    if (this.users.length) {
+      this.users = this.users.map(u => this.withTenantName(u));
+    }
+  }
+
+  onTenantChange(tenant: Tenant | null): void {
+    this.selectedTenant = tenant;
+    this.pageIndex = 0;
+    this.loadUsers();
+  }
+
+  private withTenantName(user: User): any {
+    const tenant = this.tenants.find(t => t.id === user.tenant_id);
+    return { ...user, tenant_name: tenant?.name ?? '—' };
   }
 
   loadUsers(): void {
     this.loading = true;
-    this.userService.getUsers(this.pageIndex + 1, this.pageSize).subscribe({
+    this.userService.getUsers(this.pageIndex + 1, this.pageSize, undefined, undefined, this.selectedTenant?.id).subscribe({
       next: (res: UserListResponse) => {
         // Pre-process roles into a comma separated string for the data table
-        this.users = res.items.map((u: User) => ({
-          ...u,
-          // We bind the converted string to a virtual 'roles' property we define in the column
-          roles_str: u.roles.map((r: any) => r.name).join(', ')
-        })) as any;
+        this.users = res.items.map((u: User) => {
+          const row: any = {
+            ...u,
+            // We bind the converted string to a virtual 'roles' property we define in the column
+            roles_str: u.roles.map((r: any) => r.name).join(', ')
+          };
+          return this.isSuperAdmin ? this.withTenantName(row) : row;
+        });
 
         // Need to update columns definition to use 'roles_str' instead
-        this.columns[3].def = 'roles_str';
+        const rolesColumn = this.columns.find(c => c.header === 'Roles');
+        if (rolesColumn) rolesColumn.def = 'roles_str';
 
         this.totalItems = res.total;
         this.loading = false;

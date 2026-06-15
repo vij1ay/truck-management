@@ -1,10 +1,11 @@
-from datetime import datetime, date
+from datetime import date
 from uuid import UUID
 from typing import Optional, List
 
 from pydantic import BaseModel, field_validator, model_validator
 
 from app.models.document import DocumentType, DocumentStatus, EntityType
+from app.schemas.common import LocalDateTime
 
 
 class DocumentCreate(BaseModel):
@@ -18,6 +19,7 @@ class DocumentCreate(BaseModel):
     issue_date: Optional[date] = None
     expiry_date: Optional[date] = None
     notes: Optional[str] = None
+    storage_path: Optional[str] = None
 
     @field_validator("file_name")
     @classmethod
@@ -70,8 +72,9 @@ class DocumentResponse(BaseModel):
     days_until_expiry: Optional[int] = None
     uploaded_by: Optional[UUID] = None
     notes: Optional[str] = None
-    created_at: datetime
-    updated_at: datetime
+    has_file: bool = False
+    created_at: LocalDateTime
+    updated_at: LocalDateTime
 
     model_config = {"from_attributes": True}
 

@@ -1,9 +1,11 @@
-from datetime import date, datetime
+from datetime import date
 from decimal import Decimal
 from typing import Optional, List
 from uuid import UUID
 
 from pydantic import BaseModel, Field
+
+from app.schemas.common import LocalDateTime
 
 
 # ── Request schemas ───────────────────────────────────────────────────────────
@@ -38,10 +40,10 @@ class AllocationResponse(BaseModel):
     effective_delivery_date: date
     is_active: bool
     allocated_by: Optional[UUID] = None
-    deactivated_at: Optional[datetime] = None
+    deactivated_at: Optional[LocalDateTime] = None
     deactivated_by: Optional[UUID] = None
     notes: Optional[str] = None
-    created_at: datetime
+    created_at: LocalDateTime
 
     model_config = {"from_attributes": True}
 

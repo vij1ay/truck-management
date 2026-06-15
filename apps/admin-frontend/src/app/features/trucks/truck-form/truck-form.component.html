@@ -3,6 +3,10 @@
 <mat-dialog-content>
     <form [formGroup]="truckForm" class="form-container">
 
+        <app-avatar-upload entityType="trucks" [entityId]="data.truck?.id ?? null"
+            [hasAvatar]="data.truck?.has_avatar ?? false" placeholderIcon="local_shipping"
+            (avatarChanged)="onAvatarChanged($event)"></app-avatar-upload>
+
         <!-- ── IDENTIFICATION ── -->
         <p class="section-label">Identification</p>
 
@@ -156,7 +160,9 @@
 
     </form>
 
-    <!-- Document manager only in edit mode -->
+    <!-- Photo gallery + document manager only in edit mode -->
+    <app-photo-gallery *ngIf="isEditMode" [truckId]="data.truck!.id"></app-photo-gallery>
+
     <app-document-manager *ngIf="isEditMode" entityType="TRUCK" [entityId]="data.truck!.id" entityPlural="trucks">
     </app-document-manager>
 

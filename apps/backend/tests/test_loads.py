@@ -45,6 +45,96 @@ def _load_payload(client_id: str, days_ahead: int = 2) -> dict:
     }
 
 
+def _create_tenant_admin(client, superadmin_headers, seed_roles, seed_tenant, email):
+    """SuperAdmin can only assign the TenantAdmin role — bootstrap one to
+    create Driver-role users (mirrors `tests/test_portal.py`)."""
+    resp = client.post(
+        "/api/v1/users",
+        json={
+            "email": email,
+            "password": "TestPass123",
+            "first_name": "Tenant",
+            "last_name": "Admin",
+            "tenant_id": str(seed_tenant.id),
+            "role_ids": [str(seed_roles["TenantAdmin"].id)],
+        },
+        headers=superadmin_headers,
+    )
+    assert resp.status_code == 201, resp.text
+
+    login = client.post("/api/v1/auth/login", json={"email": email, "password": "TestPass123"})
+    assert login.status_code == 200, login.text
+    return {"Authorization": f"Bearer {login.json()['access_token']}"}
+
+
+def _create_truck(client, headers, reg="DLV01AA0001"):
+    resp = client.post(
+        "/api/v1/trucks/",
+        json={
+            "registration_no": reg,
+            "truck_type": "flatbed",
+            "ownership_type": "owned",
+            "capacity_tons": 10.0,
+        },
+        headers=headers,
+    )
+    assert resp.status_code == 201, resp.text
+    return resp.json()["id"]
+
+
+def _create_driver_user(client, headers, seed_roles, email, license_no):
+    """Create a Driver-role login + linked Driver record. Returns
+    (driver_headers, driver_id)."""
+    user_resp = client.post(
+        "/api/v1/users",
+        json={
+            "email": email,
+            "password": "TestPass123",
+            "first_name": "Mobile",
+            "last_name": "Driver",
+            "role_ids": [str(seed_roles["Driver"].id)],
+        },
+        headers=headers,
+    )
+    assert user_resp.status_code == 201, user_resp.text
+    user_id = user_resp.json()["id"]
+
+    driver_resp = client.post(
+        "/api/v1/drivers/",
+        json={
+            "first_name": "Mobile",
+            "last_name": "Driver",
+            "phone": "9000000099",
+            "license_no": license_no,
+            "license_class": "hmv",
+            "license_expiry": (date.today() + timedelta(days=365)).isoformat(),
+            "user_id": user_id,
+        },
+        headers=headers,
+    )
+    assert driver_resp.status_code == 201, driver_resp.text
+    driver_id = driver_resp.json()["id"]
+
+    login = client.post("/api/v1/auth/login", json={"email": email, "password": "TestPass123"})
+    assert login.status_code == 200, login.text
+    driver_headers = {"Authorization": f"Bearer {login.json()['access_token']}"}
+    return driver_headers, driver_id
+
+
+def _create_allocated_load(client, headers, client_id, truck_id, driver_id, days_ahead=2):
+    """Create a load, confirm it, and allocate the given truck/driver."""
+    load_id = client.post("/api/v1/loads/", json=_load_payload(client_id, days_ahead), headers=headers).json()["id"]
+    confirm = client.post(f"/api/v1/loads/{load_id}/transition", json={"to_status": "confirmed"}, headers=headers)
+    assert confirm.status_code == 200, confirm.text
+    alloc = client.post(
+        f"/api/v1/loads/{load_id}/allocate",
+        json={"truck_id": truck_id, "driver_id": driver_id},
+        headers=headers,
+    )
+    assert alloc.status_code == 200, alloc.text
+    return load_id
+
+
 # ── Test class ─────────────────────────────────────────────────────────────────
 
 class TestLoadEndpoints:
@@ -327,3 +417,301 @@ class TestLoadEndpoints:
         resp = client.get(f"/api/v1/loads/{load_id}/history", headers=headers)
         assert resp.status_code == 200
         assert len(resp.json()) == 3  # creation + 2 transitions
+
+
+class TestLoadDocuments:
+    def test_add_pod_document_to_load(self, client, seed_superadmin):
+        headers = _auth(client, seed_superadmin)
+        cid = _create_client(client, headers)
+        load_id = client.post("/api/v1/loads/", json=_load_payload(cid), headers=headers).json()["id"]
+
+        doc = {
+            "entity_type": "load",
+            "entity_id": load_id,
+            "document_type": "pod",
+            "file_name": "pod-signed.pdf",
+            "file_url": "https://example.com/pods/pod-signed.pdf",
+        }
+        resp = client.post(f"/api/v1/loads/{load_id}/documents", json=doc, headers=headers)
+        assert resp.status_code == 201, resp.text
+        data = resp.json()
+        assert data["document_type"] == "pod"
+        assert data["entity_type"] == "load"
+        assert data["entity_id"] == load_id
+        assert data["file_url"] == "https://example.com/pods/pod-signed.pdf"
+
+    def test_list_load_documents(self, client, seed_superadmin):
+        headers = _auth(client, seed_superadmin)
+        cid = _create_client(client, headers)
+        load_id = client.post("/api/v1/loads/", json=_load_payload(cid), headers=headers).json()["id"]
+
+        client.post(
+            f"/api/v1/loads/{load_id}/documents",
+            json={
+                "entity_type": "load",
+                "entity_id": load_id,
+                "document_type": "pod",
+                "file_name": "pod.pdf",
+                "file_url": "https://example.com/pod.pdf",
+            },
+            headers=headers,
+        )
+
+        resp = client.get(f"/api/v1/loads/{load_id}/documents", headers=headers)
+        assert resp.status_code == 200, resp.text
+        assert resp.json()["total"] == 1
+        assert resp.json()["items"][0]["document_type"] == "pod"
+
+    def test_add_document_entity_mismatch_rejected(self, client, seed_superadmin):
+        headers = _auth(client, seed_superadmin)
+        cid = _create_client(client, headers)
+        load_id = client.post("/api/v1/loads/", json=_load_payload(cid), headers=headers).json()["id"]
+        other_load_id = client.post("/api/v1/loads/", json=_load_payload(cid, days_ahead=3), headers=headers).json()["id"]
+
+        # entity_id doesn't match the load in the URL
+        resp = client.post(
+            f"/api/v1/loads/{load_id}/documents",
+            json={
+                "entity_type": "load",
+                "entity_id": other_load_id,
+                "document_type": "pod",
+                "file_name": "pod.pdf",
+            },
+            headers=headers,
+        )
+        assert resp.status_code == 400
+
+
+class TestLoadTenantFilter:
+    def test_superadmin_filters_loads_by_tenant(self, client, seed_superadmin, seed_tenant, second_tenant):
+        su_headers = _auth(client, seed_superadmin)
+
+        # A load in the SuperAdmin's own (seed) tenant
+        own_client_id = _create_client(client, su_headers, "Tenant A Shipper")
+        own_load = client.post("/api/v1/loads/", json=_load_payload(own_client_id), headers=su_headers)
+        assert own_load.status_code == 201, own_load.text
+
+        # A load in the second tenant, created by its own TenantAdmin
+        other_headers = second_tenant["headers"]
+        other_tenant_id = second_tenant["tenant_id"]
+        other_client_id = _create_client(client, other_headers, "Tenant B Shipper")
+        other_load = client.post(
+            "/api/v1/loads/", json=_load_payload(other_client_id, days_ahead=3), headers=other_headers
+        )
+        assert other_load.status_code == 201, other_load.text
+
+        # Unfiltered list (SuperAdmin) includes loads from both tenants
+        unfiltered = client.get("/api/v1/loads/", headers=su_headers)
+        assert unfiltered.status_code == 200, unfiltered.text
+        tenant_ids = {l["tenant_id"] for l in unfiltered.json()["items"]}
+        assert str(seed_tenant.id) in tenant_ids
+        assert other_tenant_id in tenant_ids
+
+        # Filtering by the second tenant only returns its loads
+        filtered = client.get("/api/v1/loads/", params={"tenant_id": other_tenant_id}, headers=su_headers)
+        assert filtered.status_code == 200, filtered.text
+        filtered_data = filtered.json()
+        assert filtered_data["total"] >= 1
+        assert all(l["tenant_id"] == other_tenant_id for l in filtered_data["items"])
+
+        # TenantAdmin of the second tenant still only sees their own loads, regardless of tenant_id
+        scoped = client.get("/api/v1/loads/", params={"tenant_id": str(seed_tenant.id)}, headers=other_headers)
+        assert scoped.status_code == 200, scoped.text
+        assert all(l["tenant_id"] == other_tenant_id for l in scoped.json()["items"])
+
+
+class TestLoadClientName:
+    def test_client_name_present_on_load_response(self, client, seed_superadmin):
+        headers = _auth(client, seed_superadmin)
+        cid = _create_client(client, headers, "Client Name Co")
+        load_id = client.post("/api/v1/loads/", json=_load_payload(cid), headers=headers).json()["id"]
+
+        resp = client.get(f"/api/v1/loads/{load_id}", headers=headers)
+        assert resp.status_code == 200, resp.text
+        assert resp.json()["client_name"] == "Client Name Co"
+
+
+class TestLoadDeliver:
+    def test_driver_starts_and_delivers_own_load(self, client, seed_superadmin, seed_roles, seed_tenant):
+        sa_headers = _auth(client, seed_superadmin)
+        headers = _create_tenant_admin(client, sa_headers, seed_roles, seed_tenant, "ta.deliver1@example.com")
+        cid = _create_client(client, headers, "Deliver Co")
+        truck_id = _create_truck(client, headers, "DLV01AA0001")
+        driver_headers, driver_id = _create_driver_user(
+            client, headers, seed_roles, "deliver.driver@example.com", "DLV1111111"
+        )
+        load_id = _create_allocated_load(client, headers, cid, truck_id, driver_id)
+
+        start = client.post(f"/api/v1/loads/{load_id}/start-trip", headers=driver_headers)
+        assert start.status_code == 200, start.text
+        assert start.json()["status"] == "in_transit"
+
+        deliver = client.post(f"/api/v1/loads/{load_id}/deliver", headers=driver_headers)
+        assert deliver.status_code == 200, deliver.text
+        data = deliver.json()
+        assert data["status"] == "delivered"
+        assert data["actual_delivery_date"] is not None
+
+        # Auto-created draft invoice
+        invoices = client.get("/api/v1/invoices", params={"client_id": cid}, headers=headers)
+        assert invoices.status_code == 200, invoices.text
+        assert any(i["load_no"] == data["load_no"] for i in invoices.json()["items"])
+
+    def test_driver_cannot_deliver_unassigned_load(self, client, seed_superadmin, seed_roles, seed_tenant):
+        sa_headers = _auth(client, seed_superadmin)
+        headers = _create_tenant_admin(client, sa_headers, seed_roles, seed_tenant, "ta.deliver2@example.com")
+        cid = _create_client(client, headers, "Deliver Co 2")
+        truck_id = _create_truck(client, headers, "DLV02AA0002")
+        driver_headers, driver_id = _create_driver_user(
+            client, headers, seed_roles, "deliver.driver2@example.com", "DLV2222222"
+        )
+        load_id = _create_allocated_load(client, headers, cid, truck_id, driver_id)
+        client.post(f"/api/v1/loads/{load_id}/start-trip", headers=driver_headers)
+
+        # A second driver, not allocated to this load
+        other_headers, _ = _create_driver_user(
+            client, headers, seed_roles, "deliver.driver3@example.com", "DLV3333333"
+        )
+        resp = client.post(f"/api/v1/loads/{load_id}/deliver", headers=other_headers)
+        assert resp.status_code == 403
+
+    def test_deliver_draft_load_rejected(self, client, seed_superadmin):
+        headers = _auth(client, seed_superadmin)
+        cid = _create_client(client, headers, "Deliver Co 3")
+        load_id = client.post("/api/v1/loads/", json=_load_payload(cid), headers=headers).json()["id"]
+
+        resp = client.post(f"/api/v1/loads/{load_id}/deliver", headers=headers)
+        assert resp.status_code == 400
+
+
+class TestLoadPodUpload:
+    def test_driver_uploads_pod_to_own_load(self, client, seed_superadmin, seed_roles, seed_tenant, tiny_png_bytes):
+        sa_headers = _auth(client, seed_superadmin)
+        headers = _create_tenant_admin(client, sa_headers, seed_roles, seed_tenant, "ta.pod1@example.com")
+        cid = _create_client(client, headers, "POD Upload Co")
+        truck_id = _create_truck(client, headers, "POD01AA0001")
+        driver_headers, driver_id = _create_driver_user(
+            client, headers, seed_roles, "pod.driver@example.com", "POD1111111"
+        )
+        load_id = _create_allocated_load(client, headers, cid, truck_id, driver_id)
+        client.post(f"/api/v1/loads/{load_id}/start-trip", headers=driver_headers)
+
+        upload = client.post(
+            f"/api/v1/loads/{load_id}/documents/pod",
+            files={"file": ("pod.png", tiny_png_bytes, "image/png")},
+            headers=driver_headers,
+        )
+        assert upload.status_code == 201, upload.text
+        doc = upload.json()
+        assert doc["has_file"] is True
+        assert doc["document_type"] == "pod"
+
+        file_resp = client.get(
+            f"/api/v1/loads/{load_id}/documents/{doc['id']}/file",
+            headers=driver_headers,
+        )
+        assert file_resp.status_code == 200, file_resp.text
+        assert file_resp.headers["content-type"] == "image/png"
+
+    def test_driver_cannot_upload_pod_to_unassigned_load(self, client, seed_superadmin, seed_roles, seed_tenant, tiny_png_bytes):
+        sa_headers = _auth(client, seed_superadmin)
+        headers = _create_tenant_admin(client, sa_headers, seed_roles, seed_tenant, "ta.pod2@example.com")
+        cid = _create_client(client, headers, "POD Upload Co 2")
+        truck_id = _create_truck(client, headers, "POD02AA0002")
+        driver_headers, driver_id = _create_driver_user(
+            client, headers, seed_roles, "pod.driver2@example.com", "POD2222222"
+        )
+        load_id = _create_allocated_load(client, headers, cid, truck_id, driver_id)
+
+        other_headers, _ = _create_driver_user(
+            client, headers, seed_roles, "pod.driver3@example.com", "POD3333333"
+        )
+        resp = client.post(
+            f"/api/v1/loads/{load_id}/documents/pod",
+            files={"file": ("pod.png", tiny_png_bytes, "image/png")},
+            headers=other_headers,
+        )
+        assert resp.status_code == 403
+
+    def test_pod_upload_rejects_non_image(self, client, seed_superadmin, seed_roles, seed_tenant):
+        sa_headers = _auth(client, seed_superadmin)
+        headers = _create_tenant_admin(client, sa_headers, seed_roles, seed_tenant, "ta.pod3@example.com")
+        cid = _create_client(client, headers, "POD Upload Co 3")
+        truck_id = _create_truck(client, headers, "POD03AA0003")
+        driver_headers, driver_id = _create_driver_user(
+            client, headers, seed_roles, "pod.driver4@example.com", "POD4444444"
+        )
+        load_id = _create_allocated_load(client, headers, cid, truck_id, driver_id)
+
+        resp = client.post(
+            f"/api/v1/loads/{load_id}/documents/pod",
+            files={"file": ("notes.txt", b"not an image", "text/plain")},
+            headers=driver_headers,
+        )
+        assert resp.status_code == 400
+
+
+class TestLoadCheckpoint:
+    def test_driver_adds_checkpoint(self, client, seed_superadmin, seed_roles, seed_tenant):
+        sa_headers = _auth(client, seed_superadmin)
+        headers = _create_tenant_admin(client, sa_headers, seed_roles, seed_tenant, "ta.checkpoint1@example.com")
+        cid = _create_client(client, headers, "Checkpoint Co")
+        truck_id = _create_truck(client, headers, "CHK01AA0001")
+        driver_headers, driver_id = _create_driver_user(
+            client, headers, seed_roles, "checkpoint.driver@example.com", "CHK1111111"
+        )
+        load_id = _create_allocated_load(client, headers, cid, truck_id, driver_id)
+        client.post(f"/api/v1/loads/{load_id}/start-trip", headers=driver_headers)
+
+        resp = client.post(
+            f"/api/v1/loads/{load_id}/checkpoints",
+            json={"label": "Reached Pickup"},
+            headers=driver_headers,
+        )
+        assert resp.status_code == 200, resp.text
+        assert resp.json()["status"] == "in_transit"  # unchanged
+
+        history = client.get(f"/api/v1/loads/{load_id}/history", headers=driver_headers)
+        assert history.status_code == 200, history.text
+        entries = history.json()
+        checkpoint = next(h for h in entries if h["remarks"] == "Reached Pickup")
+        assert checkpoint["from_status"] == checkpoint["to_status"] == "in_transit"
+
+    def test_checkpoint_label_too_short_rejected(self, client, seed_superadmin, seed_roles, seed_tenant):
+        sa_headers = _auth(client, seed_superadmin)
+        headers = _create_tenant_admin(client, sa_headers, seed_roles, seed_tenant, "ta.checkpoint2@example.com")
+        cid = _create_client(client, headers, "Checkpoint Co 2")
+        truck_id = _create_truck(client, headers, "CHK02AA0002")
+        driver_headers, driver_id = _create_driver_user(
+            client, headers, seed_roles, "checkpoint.driver2@example.com", "CHK2222222"
+        )
+        load_id = _create_allocated_load(client, headers, cid, truck_id, driver_id)
+        client.post(f"/api/v1/loads/{load_id}/start-trip", headers=driver_headers)
+
+        resp = client.post(
+            f"/api/v1/loads/{load_id}/checkpoints",
+            json={"label": "X"},
+            headers=driver_headers,
+        )
+        assert resp.status_code == 422
+
+    def test_driver_cannot_add_checkpoint_to_unassigned_load(self, client, seed_superadmin, seed_roles, seed_tenant):
+        sa_headers = _auth(client, seed_superadmin)
+        headers = _create_tenant_admin(client, sa_headers, seed_roles, seed_tenant, "ta.checkpoint3@example.com")
+        cid = _create_client(client, headers, "Checkpoint Co 3")
+        truck_id = _create_truck(client, headers, "CHK03AA0003")
+        driver_headers, driver_id = _create_driver_user(
+            client, headers, seed_roles, "checkpoint.driver3@example.com", "CHK3333333"
+        )
+        load_id = _create_allocated_load(client, headers, cid, truck_id, driver_id)
+        client.post(f"/api/v1/loads/{load_id}/start-trip", headers=driver_headers)
+
+        other_headers, _ = _create_driver_user(
+            client, headers, seed_roles, "checkpoint.driver4@example.com", "CHK4444444"
+        )
+        resp = client.post(
+            f"/api/v1/loads/{load_id}/checkpoints",
+            json={"label": "Reached Pickup"},
+            headers=other_headers,
+        )
+        assert resp.status_code == 403

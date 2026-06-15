@@ -4,6 +4,7 @@ import { Observable } from 'rxjs';
 
 export interface Truck {
     id: string;
+    tenant_id?: string;
     registration_no: string;
     truck_type: string;
     ownership_type: string;
@@ -32,6 +33,7 @@ export interface Truck {
     notes?: string;
     status: string; // e.g., ACTIVE, INACTIVE, IN_MAINTENANCE, DECOMMISSIONED
     is_available: boolean;
+    has_avatar?: boolean;
     created_at: string;
 }
 
@@ -104,13 +106,16 @@ export class TruckService {
     private http = inject(HttpClient);
     private basePath = 'trucks';
 
-    getTrucks(skip: number = 0, limit: number = 10, status?: string): Observable<PaginatedResponse<Truck>> {
+    getTrucks(skip: number = 0, limit: number = 10, status?: string, tenantId?: string): Observable<PaginatedResponse<Truck>> {
         let params = new HttpParams()
             .set('skip', skip.toString())
             .set('limit', limit.toString());
 
         if (status) {
             params = params.set('status', status);
+        }
+        if (tenantId) {
+            params = params.set('tenant_id', tenantId);
         }
 
         return this.http.get<PaginatedResponse<Truck>>(this.basePath, { params });

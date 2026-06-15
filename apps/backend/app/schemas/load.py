@@ -1,4 +1,4 @@
-from datetime import date, datetime, time
+from datetime import date, time
 from decimal import Decimal
 from typing import Optional, List
 from uuid import UUID
@@ -6,6 +6,9 @@ from uuid import UUID
 from pydantic import BaseModel, Field, field_validator, model_validator
 
 from app.models.load import GoodsType, LoadStatus
+from app.schemas.common import LocalDateTime
+
+
 class LoadBase(BaseModel):
     """Shared editable fields for load create and update."""
     origin: str = Field(..., min_length=2, max_length=255)
@@ -61,6 +64,44 @@ class LoadCreate(LoadBase):
         return self
 
 
+class PortalLoadCreate(LoadBase):
+    """Schema for a Client-portal booking request — `client_id` is resolved
+    server-side from the logged-in user's linked Client record (see app/api/v1/portal.py).
+
+    `tenant_id` selects which carrier (of the shipper's linked relationships) this
+    booking request is for — a shipper may have relationships with multiple tenants."""
+
+    tenant_id: UUID
+
+    @field_validator("origin", "destination")
+    @classmethod
+    def strip_location(cls, v: str) -> str:
+        return v.strip()
+
+    @field_validator("pickup_date")
+    @classmethod
+    def pickup_not_in_past(cls, v: date) -> date:
+        if v < date.today():
+            raise ValueError("pickup_date cannot be in the past")
+        return v
+
+    @model_validator(mode="after")
+    def delivery_after_pickup(self) -> "PortalLoadCreate":
+        if self.expected_delivery_date and self.expected_delivery_date < self.pickup_date:
+            raise ValueError("expected_delivery_date must be on or after pickup_date")
+        return self
+
+    @model_validator(mode="after")
+    def advance_not_exceed_freight(self) -> "PortalLoadCreate":
+        if (
+            self.freight_amount is not None
+            and self.advance_amount is not None
+            and self.advance_amount > self.freight_amount
+        ):
+            raise ValueError("advance_amount cannot exceed freight_amount")
+        return self
+
+
 # ── Update ─────────────────────────────────────────────────────────────────────
 
 class LoadUpdate(BaseModel):
@@ -101,6 +142,13 @@ class LoadCancelRequest(BaseModel):
     reason: str = Field(..., min_length=5, max_length=500)
 
 
+class LoadCheckpointRequest(BaseModel):
+    """Request to record a checkpoint (e.g. "Reached Pickup") — appends a
+    `LoadHistory` entry without changing `status` (see
+    `LoadService.add_checkpoint`)."""
+    label: str = Field(..., min_length=2, max_length=100)
+
+
 # ── Response schemas ──────────────────────────────────────────────────────────
 
 class LoadHistoryResponse(BaseModel):
@@ -110,7 +158,7 @@ class LoadHistoryResponse(BaseModel):
     to_status: LoadStatus
     changed_by: Optional[UUID] = None
     remarks: Optional[str] = None
-    changed_at: datetime
+    changed_at: LocalDateTime
 
     model_config = {"from_attributes": True}
 
@@ -122,6 +170,7 @@ class LoadResponse(BaseModel):
     load_seq_no: int
     status: LoadStatus
     client_id: UUID
+    client_name: Optional[str] = None
 
     origin: str
     destination: str
@@ -149,25 +198,39 @@ class LoadResponse(BaseModel):
     booked_by: Optional[UUID] = None
     cancelled_by: Optional[UUID] = None
     cancellation_reason: Optional[str] = None
-    cancelled_at: Optional[datetime] = None
+    cancelled_at: Optional[LocalDateTime] = None
 
     # Phase 4 Allocation
     allocated_truck_id: Optional[UUID] = None
     allocated_driver_id: Optional[UUID] = None
-    allocated_at: Optional[datetime] = None
+    allocated_at: Optional[LocalDateTime] = None
     allocated_by: Optional[UUID] = None
 
     is_editable: bool              # Computed property from model
     is_deletable: bool             # Computed property from model
 
-    created_at: datetime
-    updated_at: datetime
+    created_at: LocalDateTime
+    updated_at: LocalDateTime
 
     model_config = {"from_attributes": True}
 
 
 class LoadListResponse(BaseModel):
     items: List[LoadResponse]
+    total: int
+    page: int
+    size: int
+    pages: int
+
+
+class PortalLoadResponse(LoadResponse):
+    """A LoadResponse plus which carrier (tenant) it belongs to — used when the
+    customer portal aggregates shipments across multiple linked carriers."""
+    carrier_name: str
+
+
+class PortalLoadListResponse(BaseModel):
+    items: List[PortalLoadResponse]
     total: int
     page: int
     size: int

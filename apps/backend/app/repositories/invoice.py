@@ -1,3 +1,4 @@
+from datetime import date
 from uuid import UUID
 from sqlalchemy import select, func, and_
 from sqlalchemy.orm import Session
@@ -18,15 +19,20 @@ class InvoiceRepository(TenantAwareRepository[Invoice]):
         status: InvoiceStatus | None = None,
         client_id: UUID | None = None,
         load_id: UUID | None = None,
+        tenant_id: UUID | None = None,
+        include_all_tenants: bool = False,
     ) -> list[Invoice]:
         stmt = select(Invoice).where(Invoice.is_deleted == False)
-        stmt = self._apply_tenant_filter(stmt)
+        if not include_all_tenants:
+            stmt = self._apply_tenant_filter(stmt)
         if status:
             stmt = stmt.where(Invoice.status == status)
         if client_id:
             stmt = stmt.where(Invoice.client_id == client_id)
         if load_id:
             stmt = stmt.where(Invoice.load_id == load_id)
+        if tenant_id is not None:
+            stmt = stmt.where(Invoice.tenant_id == tenant_id)
         stmt = stmt.order_by(Invoice.created_at.desc()).offset(skip).limit(limit)
         return list(self.db.execute(stmt).scalars().all())
 
@@ -35,15 +41,20 @@ class InvoiceRepository(TenantAwareRepository[Invoice]):
         status: InvoiceStatus | None = None,
         client_id: UUID | None = None,
         load_id: UUID | None = None,
+        tenant_id: UUID | None = None,
+        include_all_tenants: bool = False,
     ) -> int:
         stmt = select(func.count()).select_from(Invoice).where(Invoice.is_deleted == False)
-        stmt = self._apply_tenant_filter(stmt)
+        if not include_all_tenants:
+            stmt = self._apply_tenant_filter(stmt)
         if status:
             stmt = stmt.where(Invoice.status == status)
         if client_id:
             stmt = stmt.where(Invoice.client_id == client_id)
         if load_id:
             stmt = stmt.where(Invoice.load_id == load_id)
+        if tenant_id is not None:
+            stmt = stmt.where(Invoice.tenant_id == tenant_id)
         return self.db.execute(stmt).scalar_one()
 
     def get_next_seq_no(self) -> int:
@@ -58,6 +69,19 @@ class InvoiceRepository(TenantAwareRepository[Invoice]):
         )
         stmt = self._apply_tenant_filter(stmt)
         return self.db.execute(stmt).scalar_one_or_none()
+
+    def get_overdue_candidates(self) -> list[Invoice]:
+        """Invoices that are SENT/PARTIAL with a due_date in the past — not yet flagged OVERDUE."""
+        stmt = select(Invoice).where(
+            and_(
+                Invoice.status.in_([InvoiceStatus.SENT, InvoiceStatus.PARTIAL]),
+                Invoice.due_date.is_not(None),
+                Invoice.due_date < date.today(),
+                Invoice.is_deleted == False,
+            )
+        )
+        stmt = self._apply_tenant_filter(stmt)
+        return list(self.db.execute(stmt).scalars().all())
 
 
 class PaymentRepository(TenantAwareRepository[Payment]):

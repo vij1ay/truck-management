@@ -1,0 +1,148 @@
+<div class="shipments-page">
+    <div class="view-header">
+        <div class="title-container">
+            <h1 class="mat-headline-5 m-0">My Shipments</h1>
+            <p class="mat-body-1 text-muted m-0">Track your bookings and submit new shipment requests.</p>
+        </div>
+        <div class="actions">
+            <button mat-raised-button color="primary" (click)="showBookingForm.set(!showBookingForm())">
+                <mat-icon>{{ showBookingForm() ? 'close' : 'add' }}</mat-icon>
+                {{ showBookingForm() ? 'Cancel' : 'New Booking Request' }}
+            </button>
+        </div>
+    </div>
+
+    <!-- BOOKING FORM -->
+    <mat-card *ngIf="showBookingForm()" class="booking-form-card">
+        <mat-card-header>
+            <mat-card-title>New Booking Request</mat-card-title>
+            <mat-card-subtitle>Fill in the shipment details and submit your request.</mat-card-subtitle>
+        </mat-card-header>
+        <mat-card-content>
+            <form [formGroup]="bookingForm" class="booking-form">
+                <div class="form-row">
+                    <mat-form-field appearance="outline" class="full-width">
+                        <mat-label>Carrier</mat-label>
+                        <mat-select formControlName="tenant_id">
+                            <mat-option *ngFor="let c of carriers()" [value]="c.tenant_id">{{ c.tenant_name }}</mat-option>
+                        </mat-select>
+                        <mat-hint>Which transport company should fulfil this booking?</mat-hint>
+                    </mat-form-field>
+                </div>
+
+                <div class="form-row">
+                    <mat-form-field appearance="outline" class="half-width">
+                        <mat-label>From (Origin)</mat-label>
+                        <input matInput formControlName="origin" placeholder="e.g. Mumbai">
+                        <mat-icon matSuffix>place</mat-icon>
+                    </mat-form-field>
+                    <mat-form-field appearance="outline" class="half-width">
+                        <mat-label>To (Destination)</mat-label>
+                        <input matInput formControlName="destination" placeholder="e.g. Delhi">
+                        <mat-icon matSuffix>flag</mat-icon>
+                    </mat-form-field>
+                </div>
+
+                <div class="form-row">
+                    <mat-form-field appearance="outline" class="half-width">
+                        <mat-label>Pickup Date</mat-label>
+                        <input matInput [matDatepicker]="picker" formControlName="pickup_date">
+                        <mat-datepicker-toggle matIconSuffix [for]="picker"></mat-datepicker-toggle>
+                        <mat-datepicker #picker></mat-datepicker>
+                    </mat-form-field>
+                    <mat-form-field appearance="outline" class="half-width">
+                        <mat-label>Goods Type</mat-label>
+                        <mat-select formControlName="goods_type">
+                            <mat-option *ngFor="let t of goodsTypes" [value]="t">{{ t }}</mat-option>
+                        </mat-select>
+                    </mat-form-field>
+                </div>
+
+                <div class="form-row">
+                    <mat-form-field appearance="outline" class="half-width">
+                        <mat-label>Weight (kg, optional)</mat-label>
+                        <input matInput type="number" formControlName="weight_kg" min="0">
+                    </mat-form-field>
+                    <mat-form-field appearance="outline" class="half-width">
+                        <mat-label>Truck Preference (optional)</mat-label>
+                        <input matInput formControlName="truck_preference" placeholder="e.g. Refrigerated, 10-ton">
+                    </mat-form-field>
+                </div>
+
+                <mat-form-field appearance="outline" class="full-width">
+                    <mat-label>Goods Description</mat-label>
+                    <input matInput formControlName="goods_description">
+                </mat-form-field>
+
+                <mat-form-field appearance="outline" class="full-width">
+                    <mat-label>Special Instructions / Remarks</mat-label>
+                    <textarea matInput formControlName="special_instructions" rows="3"></textarea>
+                </mat-form-field>
+
+                <div class="form-actions">
+                    <button mat-raised-button color="primary" type="button" (click)="submitBooking()"
+                        [disabled]="bookingForm.invalid || loading()">
+                        <mat-icon>send</mat-icon>
+                        Submit Booking Request
+                    </button>
+                </div>
+            </form>
+        </mat-card-content>
+    </mat-card>
+
+    <!-- SHIPMENTS TABLE -->
+    <mat-card class="table-card">
+        <div *ngIf="loading()" class="loading-overlay">
+            <mat-spinner diameter="40"></mat-spinner>
+        </div>
+
+        <table mat-table [dataSource]="shipments()" class="full-width-table">
+            <ng-container matColumnDef="load_no">
+                <th mat-header-cell *matHeaderCellDef>Booking Ref</th>
+                <td mat-cell *matCellDef="let row"><a class="link" (click)="openShipment(row)">{{ row.load_no }}</a></td>
+            </ng-container>
+            <ng-container matColumnDef="carrier_name">
+                <th mat-header-cell *matHeaderCellDef>Carrier</th>
+                <td mat-cell *matCellDef="let row">{{ row.carrier_name }}</td>
+            </ng-container>
+            <ng-container matColumnDef="origin">
+                <th mat-header-cell *matHeaderCellDef>From</th>
+                <td mat-cell *matCellDef="let row">{{ row.origin }}</td>
+            </ng-container>
+            <ng-container matColumnDef="destination">
+                <th mat-header-cell *matHeaderCellDef>To</th>
+                <td mat-cell *matCellDef="let row">{{ row.destination }}</td>
+            </ng-container>
+            <ng-container matColumnDef="pickup_date">
+                <th mat-header-cell *matHeaderCellDef>Pickup Date</th>
+                <td mat-cell *matCellDef="let row">{{ row.pickup_date | date:'mediumDate' }}</td>
+            </ng-container>
+            <ng-container matColumnDef="goods_type">
+                <th mat-header-cell *matHeaderCellDef>Goods</th>
+                <td mat-cell *matCellDef="let row">{{ row.goods_type }}</td>
+            </ng-container>
+            <ng-container matColumnDef="status">
+                <th mat-header-cell *matHeaderCellDef>Status</th>
+                <td mat-cell *matCellDef="let row">
+                    <span class="status-badge" [ngClass]="getStatusColor(row.status)">{{ row.status }}</span>
+                </td>
+            </ng-container>
+            <ng-container matColumnDef="action">
+                <th mat-header-cell *matHeaderCellDef></th>
+                <td mat-cell *matCellDef="let row">
+                    <button mat-icon-button (click)="openShipment(row)" title="View details">
+                        <mat-icon>open_in_new</mat-icon>
+                    </button>
+                </td>
+            </ng-container>
+
+            <tr mat-header-row *matHeaderRowDef="columns"></tr>
+            <tr mat-row *matRowDef="let row; columns: columns;" class="clickable-row" (click)="openShipment(row)"></tr>
+            <tr class="mat-row" *matNoDataRow>
+                <td class="mat-cell no-data-cell" [attr.colspan]="columns.length">
+                    No shipments yet. Click "New Booking Request" to get started.
+                </td>
+            </tr>
+        </table>
+    </mat-card>
+</div>

@@ -1,3 +1,5 @@
+import pytz
+from pydantic import field_validator
 from pydantic_settings import BaseSettings
 from functools import lru_cache
 
@@ -27,14 +29,30 @@ class Settings(BaseSettings):
     APP_NAME: str = "Transport Management System"
     DEBUG: bool = False
     API_V1_PREFIX: str = "/api/v1"
-    
+
     # Logging
     LOG_LEVEL: str = "INFO"
     LOG_DIR: str = "logs"
     LOG_FILE: str = "app.log"
     LOG_MAX_SIZE_MB: int = 20
     LOG_BACKUP_COUNT: int = 100
-    
+
+    # Timezone — used to format displayed timestamps for users without an explicit
+    # `timezone` set on their profile (see app/core/timezone_context.py).
+    DEFAULT_TIMEZONE: str = "Asia/Kolkata"
+
+    # Profile picture / logo uploads — stored on local disk, served via authenticated
+    # GET /{resource}/{id}/avatar endpoints (see app/core/avatar_storage.py).
+    UPLOAD_DIR: str = "uploads"
+    MAX_AVATAR_SIZE_MB: int = 5
+
+    @field_validator("DEFAULT_TIMEZONE")
+    @classmethod
+    def validate_default_timezone(cls, v: str) -> str:
+        if v not in pytz.all_timezones_set:
+            raise ValueError(f"Invalid timezone: {v}")
+        return v
+
     model_config = {
         "env_file": ".env",
         "env_file_encoding": "utf-8",

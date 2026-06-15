@@ -26,6 +26,16 @@ A comprehensive multi-tenant transport and logistics management platform designe
 | **Client** | Books loads, views invoices. Can request truck preference, pickup date/time, origin/destination. |
 | **Driver** | Mobile app access for load execution. Views assigned trips and starts them. |
 
+### User Guides
+
+End-user documentation (not developer setup) lives in `docs/`:
+
+- [`docs/user-guide-web.md`](docs/user-guide-web.md) — the Angular admin
+  portal and Client Portal, by role (SuperAdmin/TenantAdmin/TransportAdmin/
+  Accounts/Driver/Client)
+- [`docs/user-guide-mobile.md`](docs/user-guide-mobile.md) — the Flutter
+  mobile app, for Driver and Client modes
+
 ---
 
 ## System Architecture
@@ -39,8 +49,8 @@ A comprehensive multi-tenant transport and logistics management platform designe
 │  │   Backend   │  │  Multi-AZ   │  │   Cache & Sessions      │ │
 │  └─────────────┘  └─────────────┘  └─────────────────────────┘ │
 │  ┌─────────────┐  ┌─────────────┐  ┌─────────────────────────┐ │
-│  │   Angular   │  │ React Native│  │   Cloud Document        │ │
-│  │   Admin     │  │  (Expo) App │  │   Storage (planned)     │ │
+│  │   Angular   │  │   Flutter   │  │   Cloud Document        │ │
+│  │   Admin     │  │ Driver App  │  │   Storage (planned)     │ │
 │  └─────────────┘  └─────────────┘  └─────────────────────────┘ │
 └─────────────────────────────────────────────────────────────────┘
 ```
@@ -54,7 +64,7 @@ A comprehensive multi-tenant transport and logistics management platform designe
 | **ORM / Migrations** | SQLAlchemy 2 + Alembic |
 | **Cache** | Redis (planned) |
 | **Admin Frontend** | Angular 21 (standalone components) |
-| **Mobile Apps** | React Native with Expo (Android & iOS) |
+| **Mobile Apps** | Flutter (Android & iOS), single codebase |
 | **Authentication** | JWT (Access + Refresh Tokens) |
 | **Containerization** | Docker + Docker Compose |
 | **CI/CD** | GitHub Actions |
@@ -80,6 +90,7 @@ truck-management-product/
 │   │   │   ├── services/           # Business logic layer
 │   │   │   └── scripts/            # Seed data utility
 │   │   ├── tests/                  # pytest test suite
+│   │   ├── uploads/                 # Avatar/logo files (local disk, gitignored)
 │   │   ├── requirements.txt
 │   │   ├── pyproject.toml
 │   │   └── .env.example
@@ -93,7 +104,7 @@ truck-management-product/
 │   │   ├── angular.json
 │   │   └── package.json
 │   │
-│   └── driver-mobile/              # React Native Driver App (planned — Phase 15)
+│   └── driver-mobile/              # Flutter Driver + Client Portal app — Phase 14
 │
 ├── infra/
 │   └── docker/
@@ -208,6 +219,14 @@ Run `make help` to see all commands.
 | `SUPERADMIN_EMAIL` | Initial admin email | `admin@system.local` |
 | `SUPERADMIN_PASSWORD` | Initial admin password | *(required)* |
 | `DEBUG` | Enable Swagger UI + verbose logging | `false` |
+| `DEFAULT_TIMEZONE` | IANA tz name used to render timestamps for users without a personal timezone set (validated against `pytz`) | `Asia/Kolkata` |
+| `UPLOAD_DIR` | Local-disk directory for uploaded profile pictures / logos (`<UPLOAD_DIR>/avatars/...`, gitignored) | `uploads` |
+| `MAX_AVATAR_SIZE_MB` | Max accepted size for profile picture / logo uploads | `5` |
+
+> **Note**: `SUPERADMIN_EMAIL` (and any other login email) may use an internal-style
+> domain like `.local` — login/account schemas use a lenient `UserEmail` format check
+> rather than `pydantic.EmailStr`, which rejects special-use TLDs and would otherwise
+> lock the seeded SuperAdmin account out of `/api/v1/auth/login` entirely.
 
 ---
 
@@ -227,13 +246,21 @@ python -m pytest tests/test_trucks.py -v
 
 | Module | Tests | Status |
 |--------|-------|--------|
-| Auth (login, refresh, logout) | 6 | ✅ Pass |
-| Trucks (CRUD, activate/deactivate, filters) | 12 | ✅ Pass |
-| Drivers (CRUD, availability toggle, location) | 9 | ✅ Pass |
-| Clients (CRUD, GST validation, search) | 9 | ✅ Pass |
+| Auth (login, refresh, logout, internal-domain emails, forgot/reset password) | 15 | ✅ Pass |
+| Trucks (CRUD, activate/deactivate, ownership, filters, profile picture, SuperAdmin tenant filter) | 17 | ✅ Pass |
+| Drivers (CRUD, availability toggle, location, SuperAdmin tenant filter) | 10 | ✅ Pass |
+| Clients (CRUD, GST validation, search, portal-account linking, profile picture, SuperAdmin tenant filter) | 15 | ✅ Pass |
 | Documents (create, expiry status, list, delete) | 8 | ✅ Pass |
-| Loads (CRUD, state machine, history, Load ID) | 18 | ✅ Pass |
-| Allocations (assign, swap, conflict check) | 12 | ✅ Pass |
+| Loads (CRUD, state machine, history, Load ID, POD documents, SuperAdmin tenant filter) | 26 | ✅ Pass |
+| Allocations (assign, swap, conflict check) | 16 | ✅ Pass |
+| Invoices & Payments (CRUD, lifecycle, PDF, overdue alerting, SuperAdmin tenant filter) | 23 | ✅ Pass |
+| Reports & Analytics (summary, trends, revenue, performance) | 14 | ✅ Pass |
+| Users (timezone preference, localized timestamps, client linking, profile picture, SuperAdmin tenant filter) | 13 | ✅ Pass |
+| Tenants (logo / profile picture upload) | 3 | ✅ Pass |
+| Client Portal (profile, shipments, history, documents, access control, multi-carrier) | 9 | ✅ Pass |
+| Audit Logs (filters, user enrichment, tenant isolation, RBAC) | 5 | ✅ Pass |
+
+**Total: 173 passed, 1 skipped** (`make test`)
 
 ---
 
@@ -247,6 +274,34 @@ GitHub Actions runs automatically on push and pull requests to `main`/`develop`:
 | **Frontend** | npm ci → ng build (production) |
 
 Pipeline config: `.github/workflows/ci.yml`
+
+---
+
+## Timezones & Localization
+
+All timestamps are stored in the database as naive UTC (`utc_now()` in
+`app/core/datetime_utils.py`). Display formatting happens **server-side**, so any client
+(the Angular admin app today, the Phase 14 mobile app in future) gets identical,
+ready-to-render strings with zero timezone logic of its own.
+
+- **`DEFAULT_TIMEZONE`** (config, default `Asia/Kolkata`) — fallback timezone for users
+  without a personal preference set, validated against `pytz.all_timezones_set`.
+- **Per-user timezone** — each user has an optional `timezone` field (IANA tz name, e.g.
+  `America/New_York`), settable via a `pytz`-backed dropdown in **Add/Edit User**
+  (`apps/admin-frontend/.../user-form`). `GET /api/v1/users/timezones` returns the
+  selectable list (`pytz.common_timezones`).
+- **Request-scoped conversion** — `get_current_user` (`app/dependencies/auth.py`) sets the
+  authenticated user's timezone in a `ContextVar` (`app/core/timezone_context.py`) for the
+  duration of the request.
+- **`LocalDateTime` schema type** (`app/schemas/common.py`) — applied to ~28 user-facing
+  `datetime` fields across all response schemas (users, audit logs, loads, invoices,
+  trucks, drivers, clients, documents, allocations, roles, tenants). Each is serialized via
+  `format_for_display()` to a string like `"10 Jun 2026, 06:30 PM IST"` in the requesting
+  user's timezone — JWT internals (`exp`/`iat`) and audit-log date-range *filter* inputs are
+  left as raw UTC `datetime` since they aren't display fields.
+- **Frontend** — the shared data table's `'datetime'` column type renders these strings
+  verbatim (no `DatePipe`, which can't parse a pre-formatted string); `'date'` columns
+  remain for genuine date-only fields (`license_expiry`, `pickup_date`, etc.).
 
 ---
 
@@ -319,20 +374,35 @@ DRAFT → CONFIRMED → ALLOCATED → IN_TRANSIT → DELIVERED
 - Driver performance (trips completed, on-time delivery rate)
 - Truck utilization breakdown
 
-### Phase 10: Invoice & Payment Module 🔜 NEXT
+### Phase 10: Invoice & Payment Module ✅ COMPLETED
 
 - Auto-generate draft invoice when a load reaches DELIVERED status
 - Invoice lifecycle: `draft → sent → paid / partial / overdue`
 - Record partial and full payments with reference numbers
 - PDF invoice generation and download
-- Overdue invoice alerting
+- Overdue invoice alerting — auto-detected on invoice list/refresh, surfaced in Reports KPIs
 
-### Phase 11: Customer (Client) Portal 🔜 PLANNED
+### Phase 11: Customer (Client) Portal ✅ COMPLETED
 
-- Separate read-only portal at `/portal/*` for CLIENT-role users
-- Clients track their own shipments, view load status timeline, download PODs
-- Per-tenant white-label branding applied (Phase 12 prerequisite)
-- Requires 2FA to be in place before go-live (Phase 13 prerequisite)
+- Separate read-only portal at `/portal/*` for CLIENT-role users, gated by `roleGuard`
+- `Client.user_id` links a login account to its client/company record (set via "Linked
+  Client" dropdown on the user form); `/portal/*` resolves the caller's client via this link
+- **Multi-carrier shippers**: a single portal login can be linked to a separate `Client`
+  record in more than one tenant (one relationship per carrier). A TenantAdmin links an
+  *existing* shipper account to one of their own `Client` records via "Link Portal
+  Account" (by email) on the Client form — the reverse direction of the "Linked Client"
+  dropdown. `/portal/me` lists every linked carrier; `/portal/loads` aggregates shipments
+  across all of them (each tagged with `carrier_name`); new bookings (`POST /portal/loads`)
+  pick which carrier (`tenant_id`) to book with.
+- Clients track their own shipments ("My Shipments"), view full load status timeline
+- **My Invoices**: `/portal/invoices` aggregates invoices across every linked carrier
+  (status filter, paid/outstanding amounts, PDF download) — same multi-carrier
+  aggregation pattern as `/portal/loads`
+- Proof of Delivery: admins upload PODs (and other documents) on DELIVERED loads from the
+  Load Board; clients view/download them from the shipment detail page
+- Admin Load Board "My Bookings" flow removed — booking now happens entirely via the portal
+- Per-tenant white-label branding (Phase 12) and 2FA (Phase 13) remain recommended before
+  external go-live, but are not blockers for internal/staging use
 
 ### Phase 12: White-Label / Per-Tenant Branding 🔜 PLANNED
 
@@ -346,13 +416,57 @@ DRAFT → CONFIRMED → ALLOCATED → IN_TRANSIT → DELIVERED
 - Two-step login: password → 6-digit code via short-lived temp token
 - Setup flow with QR code in user profile settings; disable with current code
 
-### Phase 14: React Native Driver Mobile App 🔜 PLANNED
+### Phase 14: Flutter Driver Mobile App 🟡 IN PROGRESS
 
-- **Platforms**: Android (Play Store) + iOS (App Store) via Expo EAS Build
-- **Native push notifications**: FCM (Android) + APNs (iOS) via Expo Push API
-- **Background GPS**: foreground service (Android) + UIBackgroundModes (iOS)
-- Screens: login (with 2FA), trip list, trip detail, status update, POD photo capture, profile
-- Triggers: push on new assignment, 1h pickup reminder, cancellation alert
+- **Platforms**: Android (Play Store) + iOS (App Store), single Flutter codebase
+  (native build tooling — Gradle / Xcode, or Codemagic/Fastlane CI)
+- **UI shell ✅ done** (`apps/driver-mobile/`): Material 3, light + dark theme
+  (toggle on Profile, persisted), Inter typography, all 10 screens from
+  `mobile_app_design.md` (login, dashboard, my trips, active-trip map, trip
+  details, proof of delivery, notifications, profile, vehicle info, documents)
+- **First-launch onboarding ✅ done**: choose a UI language (English/Hindi/Tamil,
+  fully localized) and whether you're a **Driver** or a **Client** — persisted,
+  changeable later from Profile → Settings
+- **Driver real-data wiring ✅ done**:
+  - **My Trips / Trip Details / Dashboard** are backed by `GET /loads` (Driver
+    role auto-scoped to the caller's allocated loads), including the shipper's
+    company name (`LoadResponse.client_name`)
+  - **Start Trip** (`POST /loads/{id}/start-trip`, ALLOCATED → IN_TRANSIT) and
+    **Mark Delivered** (`POST /loads/{id}/deliver`, IN_TRANSIT → DELIVERED,
+    auto-creates the draft invoice)
+  - **Checkpoints** ("Reached Pickup" on the Active Trip Map, "Loaded"/"Reached
+    Destination" on Trip Details) via `POST /loads/{id}/checkpoints` — recorded
+    as `LoadHistory` entries and shown on the Timeline tab alongside real status
+    transitions
+  - **Proof of Delivery**: photo capture **and** a drawn signature (`signature`
+    package, exported to PNG) both upload to `POST /loads/{id}/documents/pod`
+    (same image-storage pattern as the Client Portal's document uploads below) —
+    photo required, signature optional; submitting records a "Delivered to ..."
+    checkpoint and marks the trip delivered. Both are viewable full-screen from
+    the Documents tab.
+  - **Documents tab** is real: Vehicle/Driver tabs list metadata from
+    `GET /trucks/{id}/documents` / `GET /drivers/{id}/documents` (now
+    Driver-permitted for their own truck/record); Trip tab aggregates POD
+    photos/signatures across the driver's 5 most recent trips
+  - **GPS location polling** (Phase 15 MVP): while a trip is IN_TRANSIT, the
+    Active Trip Map screen calls `PATCH /drivers/{id}/location` every 30s via
+    `geolocator` and shows "Sharing live location" — fails silently if location
+    services/permissions are unavailable
+  - **Notifications feed**: a lightweight "Recent Activity" list derived from
+    each trip's `LoadHistory` (no backend notification model needed yet) — New
+    Trip Assigned / Trip Started / Trip Completed / Trip Cancelled / checkpoints;
+    the bottom-nav badge counts newly-allocated trips
+- **Client Portal ✅ done**: picking "Client" during onboarding leads to a
+  4-tab shell (Home/Shipments/Invoices/Profile) backed by `/portal/*` —
+  dashboard summary, shipment list/detail with status timeline + document
+  viewer/uploads, editable/cancellable DRAFT-CONFIRMED bookings, invoice list
+  with payment history and PDF download, multi-carrier filtering
+- **Remaining**: real push notifications (`firebase_messaging`/FCM — device-token
+  registration + dispatch hooks, no backend model yet), background GPS (the
+  polling above only runs while the Active Trip Map screen is open), 2FA/OTP
+  login step, and the Active Trip Map's live route/tiles (Phase 15 — the GPS
+  data is now being sent, but nothing broadcasts/consumes it on the admin side
+  yet)
 
 ### Phase 15: Real-Time GPS Tracking 🔜 PLANNED
 
@@ -360,6 +474,38 @@ DRAFT → CONFIRMED → ALLOCATED → IN_TRANSIT → DELIVERED
 - Driver mobile app (Phase 14) pushes GPS coordinates every 30s during active trips
 - Admin live map (Leaflet.js) showing all active trucks with driver + load info
 - Marker click → load details side panel
+
+---
+
+## Recent Platform Improvements
+
+Cross-cutting work that doesn't map to a single phase number:
+
+- **SuperAdmin tenant filter**: a searchable "Filter by Tenant" dropdown
+  (`apps/admin-frontend/.../shared/components/tenant-filter`) is now available to
+  SuperAdmin on the **Users, Audit Logs, Loads, Clients, Drivers, Trucks, and
+  Invoices** list pages — each backed by an optional `tenant_id` query param on the
+  corresponding `GET` list endpoint, plus a "Tenant" column showing which tenant each
+  row belongs to. TenantAdmin views are unaffected (still scoped to their own tenant).
+- **Profile pictures / logos**: Users, Trucks, Clients, and Tenants can each have a
+  profile picture or logo, uploaded with a crop & zoom step
+  (`ngx-image-cropper`) before saving. Images are stored on local disk
+  (`UPLOAD_DIR/avatars/<entity>/<uuid>.<ext>`) and served via authenticated
+  `GET /{resource}/{id}/avatar` endpoints (`POST`/`DELETE` to upload/remove) — list
+  pages show a small circular thumbnail, edit forms show a larger preview with
+  Upload/Remove controls. See [Security Considerations](#security-considerations).
+- **Admin Load Board**: search (load #/origin/destination), status/client/pickup-date
+  filters, and pagination — previously a flat unfiltered list of the first 50 loads
+- **Forgot / Reset Password**: `POST /auth/forgot-password` + `/auth/reset-password`
+  (single-use, 1h-expiry tokens; resetting revokes all sessions). No email service yet —
+  see [Security Considerations](#security-considerations)
+- **Audit Log viewer**: SuperAdmin/TenantAdmin nav item — filter by category/event
+  type/date range, "View Details" dialog with old/new value diffs and `user_email`
+- **`make seed-demo`**: seeds a demo tenant + the 5 documented [Seed Accounts](#seed-accounts)
+  (previously only `make seed`'s SuperAdmin existed)
+- **SuperAdmin login fix**: `admin@system.local` now logs in (`UserEmail` lenient
+  validator instead of `pydantic.EmailStr`, which rejected `.local`)
+- **Phase 14 Flutter UI shell**: see Phase 14 above and `mobile_app_design.md`
 
 ---
 
@@ -377,26 +523,34 @@ DRAFT → CONFIRMED → ALLOCATED → IN_TRANSIT → DELIVERED
 | Phase 8 | ✅ **COMPLETED** | Role-Based UI & Access Management |
 | Infra | ✅ **COMPLETED** | Docker Compose + GitHub Actions CI |
 | Phase 9 | ✅ **COMPLETED** | Reports & Analytics Dashboard |
-| Phase 10 | 🔜 **NEXT** | Invoice & Payment Module |
-| Phase 11 | 🔜 **PLANNED** | Customer (Client) Portal |
-| Phase 12 | 🔜 **PLANNED** | White-Label / Per-Tenant Branding |
+| Phase 10 | ✅ **COMPLETED** | Invoice & Payment Module |
+| Phase 11 | ✅ **COMPLETED** | Customer (Client) Portal |
+| Phase 12 | 🔜 **NEXT** | White-Label / Per-Tenant Branding |
 | Phase 13 | 🔜 **PLANNED** | Two-Factor Authentication (TOTP) |
-| Phase 14 | 🔜 **PLANNED** | React Native Driver App — Android + iOS |
+| Phase 14 | 🟡 **IN PROGRESS** | Flutter Driver App + Client Portal — Android + iOS (real-data wiring done; map SDK, push, 2FA remain) |
 | Phase 15 | 🔜 **PLANNED** | Real-Time GPS Tracking (WebSocket + Live Map) |
 
 ---
 
 ## Seed Accounts
 
-> Password for all accounts: `password123`
+`make seed` (`docker-seed`) only creates the **SuperAdmin** (`admin@system.local` /
+`DevPassword123!` — see `apps/backend/.env`), which has no tenant and is meant for
+tenant administration, not day-to-day demo use.
+
+To get a "Demo Transport Co" tenant with the accounts below (plus a few sample
+trucks/drivers/clients), run **`make seed-demo`** (`docker-seed-demo`). It's safe to
+re-run — every entity is looked up before creation.
+
+> Password for all demo accounts: `password123`
 
 | Email | Role | Capabilities |
 |-------|------|-------------|
 | `admin@demo.transport.com` | TenantAdmin | Full system CRUD |
 | `transport@demo.transport.com` | TransportAdmin | Standard master data CRUD |
 | `accounts@demo.transport.com` | Accounts | Clients & Loads only |
-| `client@demo.transport.com` | Client | Own loads only |
-| `driver@demo.transport.com` | Driver | Own tasks only |
+| `client@demo.transport.com` | Client | Own loads only (linked to "Acme Industries Pvt Ltd") |
+| `driver@demo.transport.com` | Driver | Own tasks only (linked to driver "Rajesh Kumar") |
 
 ---
 
@@ -405,9 +559,24 @@ DRAFT → CONFIRMED → ALLOCATED → IN_TRANSIT → DELIVERED
 - Passwords hashed with bcrypt (cost factor 12)
 - JWT tokens with short expiry and rotation; refresh tokens persisted in DB
 - Tenant isolation enforced at repository level
-- Audit trail for all write operations
+- Audit trail for all write operations — viewable in-app via the **Audit Log**
+  page (SuperAdmin/TenantAdmin), `GET /audit-logs`
 - Account lockout after 5 failed login attempts
 - Soft delete for data retention compliance — no hard deletes
+- **Forgot/reset password** (`POST /auth/forgot-password` / `/auth/reset-password`):
+  single-use, 1-hour-expiry tokens (`password_reset_tokens` table); resetting
+  revokes all of the user's refresh tokens. No email service is wired up yet — when
+  `DEBUG=true`, `/auth/forgot-password` returns the raw `reset_token` directly in
+  the response (and the portal/login UI surfaces a "Continue to Reset Password"
+  link) so the flow works end-to-end in dev/demo. Replace this with a real email
+  send before any external deployment.
+- **Profile picture / logo uploads**: validated server-side (`image/jpeg|png|webp`,
+  ≤`MAX_AVATAR_SIZE_MB`, Pillow-verified) and stored on local disk under `UPLOAD_DIR`
+  with randomized filenames (`avatar_path`, never exposed to the client). Retrieved
+  only via authenticated `GET /{resource}/{id}/avatar`, which applies the same
+  tenant-isolation / role checks as the resource's other endpoints — the frontend
+  fetches them through `HttpClient` (auth interceptor) and renders `blob:` object
+  URLs rather than plain `<img src>`.
 
 ---
 

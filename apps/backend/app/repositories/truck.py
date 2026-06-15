@@ -21,10 +21,13 @@ class TruckRepository(TenantAwareRepository[Truck]):
         ownership_type: str | None = None,
         is_available: bool | None = None,
         search: str | None = None,
+        tenant_id: UUID | None = None,
+        include_all_tenants: bool = False,
     ) -> list[Truck]:
         """Get trucks with optional filters."""
         stmt = select(Truck).where(Truck.is_deleted == False)
-        stmt = self._apply_tenant_filter(stmt)
+        if not include_all_tenants:
+            stmt = self._apply_tenant_filter(stmt)
 
         if status:
             stmt = stmt.where(Truck.status == status)
@@ -44,6 +47,8 @@ class TruckRepository(TenantAwareRepository[Truck]):
                     Truck.owner_name.ilike(search_term),
                 )
             )
+        if tenant_id is not None:
+            stmt = stmt.where(Truck.tenant_id == tenant_id)
 
         stmt = stmt.order_by(Truck.created_at.desc()).offset(skip).limit(limit)
         return list(self.db.execute(stmt).scalars().all())
@@ -55,10 +60,13 @@ class TruckRepository(TenantAwareRepository[Truck]):
         ownership_type: str | None = None,
         is_available: bool | None = None,
         search: str | None = None,
+        tenant_id: UUID | None = None,
+        include_all_tenants: bool = False,
     ) -> int:
         """Count trucks matching filters."""
         stmt = select(func.count()).select_from(Truck).where(Truck.is_deleted == False)
-        stmt = self._apply_tenant_filter(stmt)
+        if not include_all_tenants:
+            stmt = self._apply_tenant_filter(stmt)
 
         if status:
             stmt = stmt.where(Truck.status == status)
@@ -78,6 +86,8 @@ class TruckRepository(TenantAwareRepository[Truck]):
                     Truck.owner_name.ilike(search_term),
                 )
             )
+        if tenant_id is not None:
+            stmt = stmt.where(Truck.tenant_id == tenant_id)
 
         return self.db.execute(stmt).scalar_one()
 

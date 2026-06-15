@@ -138,7 +138,7 @@ def seed_superadmin(db_session, seed_roles, seed_tenant):
     """Seed a SuperAdmin user associated with the test tenant."""
     from app.models import User, UserRole
     from app.core.security import hash_password
-    from datetime import datetime
+    from app.core.datetime_utils import utc_now
 
     user = User(
         email="admin@example.com",
@@ -148,7 +148,7 @@ def seed_superadmin(db_session, seed_roles, seed_tenant):
         tenant_id=seed_tenant.id,
         is_active=True,
         is_verified=True,
-        password_changed_at=datetime.utcnow()
+        password_changed_at=utc_now()
     )
     db_session.add(user)
     db_session.flush()
@@ -157,8 +157,59 @@ def seed_superadmin(db_session, seed_roles, seed_tenant):
         user_id=user.id,
         role_id=seed_roles["SuperAdmin"].id,
         tenant_id=seed_tenant.id,
-        assigned_at=datetime.utcnow()
+        assigned_at=utc_now()
     )
     db_session.add(user_role)
     db_session.commit()
     return user
+
+
+@pytest.fixture
+def second_tenant(client, seed_superadmin):
+    """
+    Create a second tenant (with its own TenantAdmin) via the SuperAdmin API, for
+    tests that verify SuperAdmin cross-tenant `tenant_id` filtering.
+
+    Returns a dict with `tenant_id`, `headers` (the second tenant's TenantAdmin),
+    and `superadmin_headers`.
+    """
+    su_login = client.post(
+        "/api/v1/auth/login",
+        json={"email": "admin@example.com", "password": "TestPassword123!"}
+    )
+    su_headers = {"Authorization": f"Bearer {su_login.json()['access_token']}"}
+
+    resp = client.post(
+        "/api/v1/tenants",
+        json={
+            "name": "Second Tenant Co",
+            "subscription_tier": "trial",
+            "max_users": 10,
+            "admin_email": "admin@second-tenant.example",
+            "admin_password": "SecondPass123",
+            "admin_first_name": "Second",
+            "admin_last_name": "Admin",
+        },
+        headers=su_headers,
+    )
+    assert resp.status_code == 201, resp.text
+    tenant_id = resp.json()["id"]
+
+    login = client.post(
+        "/api/v1/auth/login",
+        json={"email": "admin@second-tenant.example", "password": "SecondPass123"}
+    )
+    admin_headers = {"Authorization": f"Bearer {login.json()['access_token']}"}
+
+    return {"tenant_id": tenant_id, "headers": admin_headers, "superadmin_headers": su_headers}
+
+
+@pytest.fixture
+def tiny_png_bytes() -> bytes:
+    """A minimal valid in-memory PNG, for avatar-upload tests."""
+    import io
+    from PIL import Image
+
+    buf = io.BytesIO()
+    Image.new("RGB", (4, 4), color="red").save(buf, format="PNG")
+    return buf.getvalue()

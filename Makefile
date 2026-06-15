@@ -1,8 +1,8 @@
 BACKEND_DIR := apps/backend
 FRONTEND_DIR := apps/admin-frontend
 
-.PHONY: dev stop setup migrate seed test test-cov lint dev-backend dev-frontend \
-        docker-migrate docker-seed docker-shell help
+.PHONY: dev stop setup migrate seed seed-demo test test-cov lint dev-backend dev-frontend \
+        docker-migrate docker-seed docker-seed-demo docker-shell help
 
 help:
 	@echo "Docker workflow (recommended):"
@@ -11,11 +11,13 @@ help:
 	@echo "  make stop            Stop and remove containers"
 	@echo "  make docker-migrate  Run Alembic migrations inside backend container"
 	@echo "  make docker-seed     Seed roles + SuperAdmin inside backend container"
+	@echo "  make docker-seed-demo Seed demo tenant + sample accounts/data inside backend container"
 	@echo "  make docker-shell    Open a shell inside the backend container"
 	@echo ""
 	@echo "Local workflow (no Docker):"
 	@echo "  make migrate         Run Alembic migrations locally"
 	@echo "  make seed            Seed data locally"
+	@echo "  make seed-demo       Seed demo tenant + sample accounts/data locally"
 	@echo "  make dev-backend     Start backend dev server locally"
 	@echo "  make dev-frontend    Start Angular dev server locally"
 	@echo ""
@@ -41,6 +43,9 @@ docker-migrate:
 docker-seed:
 	docker compose exec backend python -m app.scripts.seed_data
 
+docker-seed-demo:
+	docker compose exec backend python -m app.scripts.seed_demo
+
 docker-shell:
 	docker compose exec backend /bin/bash
 
@@ -51,6 +56,9 @@ migrate:
 
 seed:
 	cd $(BACKEND_DIR) && python -m app.scripts.seed_data
+
+seed-demo:
+	cd $(BACKEND_DIR) && python -m app.scripts.seed_demo
 
 dev-backend:
 	cd $(BACKEND_DIR) && uvicorn app.main:app --reload --host 0.0.0.0 --port 8000

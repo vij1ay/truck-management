@@ -49,6 +49,17 @@ export interface LoadListResponse {
     pages: number;
 }
 
+export interface LoadFilters {
+    page?: number;
+    size?: number;
+    status?: string;
+    client_id?: string;
+    pickup_date_from?: string;
+    pickup_date_to?: string;
+    search?: string;
+    tenant_id?: string;
+}
+
 export interface LoadCreate {
     origin: string;
     destination: string;
@@ -85,10 +96,13 @@ export class LoadService {
     private http = inject(HttpClient);
     private endpoint = 'loads';
 
-    getLoads(page = 1, size = 20, status?: string, clientId?: string): Observable<LoadListResponse> {
-        let params = new HttpParams().set('page', page).set('size', size);
-        if (status) params = params.set('status', status);
-        if (clientId) params = params.set('client_id', clientId);
+    getLoads(filters: LoadFilters = {}): Observable<LoadListResponse> {
+        let params = new HttpParams();
+        Object.entries(filters).forEach(([key, value]) => {
+            if (value !== undefined && value !== null && value !== '') {
+                params = params.set(key, String(value));
+            }
+        });
         return this.http.get<LoadListResponse>(this.endpoint, { params });
     }
 

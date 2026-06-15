@@ -1,13 +1,15 @@
 from datetime import datetime
 from uuid import UUID
 
-from pydantic import BaseModel, EmailStr, Field
+from pydantic import BaseModel, Field, field_validator
+
+from app.schemas.common import UserEmail, validate_password_complexity
 
 
 class LoginRequest(BaseModel):
     """Request schema for user login."""
-    
-    email: EmailStr
+
+    email: UserEmail
     password: str = Field(..., min_length=8, max_length=128)
 
 
@@ -63,9 +65,33 @@ class PasswordChangeRequest(BaseModel):
 
 
 class PasswordResetRequest(BaseModel):
-    """Request schema for password reset initiation."""
-    
-    email: EmailStr
+    """Request schema for password reset initiation (POST /auth/forgot-password)."""
+
+    email: UserEmail
+
+
+class PasswordResetResponse(BaseModel):
+    """Response for POST /auth/forgot-password.
+
+    Always returns the same generic `message` regardless of whether the email
+    matches an account (avoids email enumeration). `reset_token` is only
+    populated when settings.DEBUG=True — there is no email service yet, so this
+    is how the reset link is delivered for now."""
+
+    message: str
+    reset_token: str | None = None
+
+
+class PasswordResetConfirm(BaseModel):
+    """Request schema for completing a password reset (POST /auth/reset-password)."""
+
+    token: str
+    new_password: str = Field(..., min_length=8, max_length=128)
+
+    @field_validator("new_password")
+    @classmethod
+    def _check_password_complexity(cls, v: str) -> str:
+        return validate_password_complexity(v)
 
 
 # Import UserBasic for forward reference

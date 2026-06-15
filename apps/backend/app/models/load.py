@@ -1,5 +1,4 @@
 import enum
-from datetime import datetime
 from sqlalchemy import (
     Column, String, Boolean, Numeric, Integer,
     ForeignKey, Text, Enum as SAEnum, Date, DateTime, Index
@@ -7,6 +6,7 @@ from sqlalchemy import (
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
 
+from app.core.datetime_utils import utc_now
 from app.models.base import BaseModel, Base, UUIDMixin, TimestampMixin
 import uuid
 
@@ -232,7 +232,7 @@ class LoadHistory(Base, UUIDMixin, TimestampMixin):
     )
 
     remarks = Column(Text, nullable=True)
-    changed_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    changed_at = Column(DateTime, default=utc_now, nullable=False)
 
     # Relationships
     load = relationship("Load", back_populates="history")

@@ -76,7 +76,7 @@ class TestReportsSummary:
 
     def test_summary_requires_auth(self, client, seed_superadmin):
         resp = client.get("/api/v1/reports/summary")
-        assert resp.status_code == 403
+        assert resp.status_code == 401
 
     def test_summary_schema_complete(self, client, seed_superadmin):
         headers = _auth(client, seed_superadmin)
@@ -89,9 +89,35 @@ class TestReportsSummary:
             "active_trucks", "available_trucks",
             "active_drivers", "available_drivers",
             "loads_this_month", "revenue_this_month",
+            "overdue_invoices_count", "overdue_invoices_amount",
         ]
         for key in required_keys:
             assert key in data, f"Missing key: {key}"
+
+    def test_summary_overdue_invoice_counted(self, client, seed_superadmin):
+        headers = _auth(client, seed_superadmin)
+        cid = _create_client(client, headers, "Overdue Report Co")
+
+        resp = client.post(
+            "/api/v1/invoices",
+            json={
+                "client_id": cid,
+                "issued_date": (date.today() - timedelta(days=40)).isoformat(),
+                "due_date": (date.today() - timedelta(days=10)).isoformat(),
+                "subtotal": "5000.00",
+            },
+            headers=headers,
+        )
+        assert resp.status_code == 201, resp.text
+        inv = resp.json()
+        send = client.post(f"/api/v1/invoices/{inv['id']}/send", headers=headers)
+        assert send.status_code == 200, send.text
+
+        summary = client.get("/api/v1/reports/summary", headers=headers)
+        assert summary.status_code == 200
+        data = summary.json()
+        assert data["overdue_invoices_count"] >= 1
+        assert data["overdue_invoices_amount"] >= 5000.0
 
 
 class TestReportsLoadTrend:
@@ -163,7 +189,7 @@ class TestReportsDriverPerformance:
 
     def test_driver_performance_requires_auth(self, client, seed_superadmin):
         resp = client.get("/api/v1/reports/drivers/performance")
-        assert resp.status_code == 403
+        assert resp.status_code == 401
 
 
 class TestReportsTruckUtilization:
@@ -178,4 +204,4 @@ class TestReportsTruckUtilization:
 
     def test_truck_utilization_requires_auth(self, client, seed_superadmin):
         resp = client.get("/api/v1/reports/trucks/utilization")
-        assert resp.status_code == 403
+        assert resp.status_code == 401

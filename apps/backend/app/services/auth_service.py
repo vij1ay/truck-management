@@ -1,9 +1,11 @@
-from datetime import datetime, timedelta
+import secrets
+from datetime import timedelta
 from uuid import UUID
 
 from sqlalchemy.orm import Session
 
 from app.config import get_settings
+from app.core.datetime_utils import utc_now
 from app.core.exceptions import (
     UnauthorizedException,
     BadRequestException,
@@ -11,6 +13,7 @@ from app.core.exceptions import (
 )
 from app.core.security import (
     verify_password,
+    hash_password,
     create_access_token,
     create_refresh_token,
     hash_token,
@@ -18,19 +21,22 @@ from app.core.security import (
     TokenPayload,
 )
 from app.models import User, EventCategory
-from app.repositories import UserRepository, RefreshTokenRepository
+from app.repositories import UserRepository, RefreshTokenRepository, PasswordResetTokenRepository
 from app.services.audit_service import AuditService
 
 settings = get_settings()
 
+PASSWORD_RESET_TOKEN_TTL = timedelta(hours=1)
+
 
 class AuthService:
     """Service for authentication operations."""
-    
+
     def __init__(self, db: Session):
         self.db = db
         self.user_repo = UserRepository(db)
         self.token_repo = RefreshTokenRepository(db)
+        self.reset_token_repo = PasswordResetTokenRepository(db)
         self.audit_service = AuditService(db)
     
     def authenticate(
@@ -57,7 +63,7 @@ class AuthService:
             raise UnauthorizedException("Invalid email or password")
         
         # Check if account is locked
-        if user.locked_until and user.locked_until > datetime.utcnow():
+        if user.locked_until and user.locked_until > utc_now():
             self.audit_service.log_login(
                 user_id=user.id,
                 tenant_id=user.tenant_id,
@@ -100,7 +106,7 @@ class AuthService:
         # Successful login - reset failed attempts
         user.failed_login_attempts = 0
         user.locked_until = None
-        user.last_login_at = datetime.utcnow()
+        user.last_login_at = utc_now()
         
         # Generate tokens
         primary_role = user.primary_role or "User"
@@ -150,7 +156,7 @@ class AuthService:
         
         # Lock account after max attempts
         if user.failed_login_attempts >= settings.MAX_LOGIN_ATTEMPTS:
-            user.locked_until = datetime.utcnow() + timedelta(
+            user.locked_until = utc_now() + timedelta(
                 minutes=settings.LOCKOUT_DURATION_MINUTES
             )
             self.audit_service.log_event(
@@ -261,7 +267,7 @@ class AuthService:
     ) -> int:
         """Logout from all sessions by revoking all refresh tokens."""
         count = self.token_repo.revoke_all_user_tokens(user.id)
-        
+
         self.audit_service.log_event(
             event_type="LOGOUT_ALL",
             event_category=EventCategory.auth,
@@ -273,6 +279,86 @@ class AuthService:
             ip_address=ip_address,
             user_agent=user_agent
         )
-        
+
         self.db.commit()
         return count
+
+    # ── Forgot / reset password ─────────────────────────────────────────────────
+
+    def request_password_reset(
+        self,
+        email: str,
+        ip_address: str | None = None,
+        user_agent: str | None = None,
+    ) -> str | None:
+        """Issue a password-reset token for `email`, if a matching active account
+        exists. Returns the RAW token (caller decides whether to expose it — see
+        ForgotPasswordResponse.reset_token) or None if there's no matching active
+        account. Either way, callers should return the same generic response to
+        avoid leaking which emails have accounts."""
+        user = self.user_repo.get_by_email(email)  # cross-tenant (existing method)
+        if not user or user.is_deleted or not user.is_active:
+            return None
+
+        # Invalidate any outstanding tokens before issuing a new one.
+        self.reset_token_repo.invalidate_all_for_user(user.id)
+
+        raw_token = secrets.token_urlsafe(32)
+        self.reset_token_repo.create_token(
+            user_id=user.id,
+            token_hash=hash_token(raw_token),
+            expires_at=utc_now() + PASSWORD_RESET_TOKEN_TTL,
+        )
+
+        self.audit_service.log_event(
+            event_type="PASSWORD_RESET_REQUESTED",
+            event_category=EventCategory.auth,
+            user_id=user.id,
+            tenant_id=user.tenant_id,
+            resource_type="User",
+            resource_id=user.id,
+            ip_address=ip_address,
+            user_agent=user_agent,
+        )
+
+        self.db.commit()
+        return raw_token
+
+    def reset_password(
+        self,
+        token: str,
+        new_password: str,
+        ip_address: str | None = None,
+        user_agent: str | None = None,
+    ) -> None:
+        """Consume a password-reset token and set a new password. Revokes all of
+        the user's refresh tokens (forces re-login on every device)."""
+        reset_token = self.reset_token_repo.get_valid_token(hash_token(token))
+        if not reset_token:
+            raise BadRequestException("Invalid or expired reset token")
+
+        user = self.db.get(User, reset_token.user_id)
+        if not user or user.is_deleted or not user.is_active:
+            raise BadRequestException("Invalid or expired reset token")
+
+        user.password_hash = hash_password(new_password)
+        user.password_changed_at = utc_now()
+        user.failed_login_attempts = 0
+        user.locked_until = None
+
+        self.reset_token_repo.mark_used(reset_token)
+        revoked = self.token_repo.revoke_all_user_tokens(user.id)
+
+        self.audit_service.log_event(
+            event_type="PASSWORD_RESET_COMPLETED",
+            event_category=EventCategory.auth,
+            user_id=user.id,
+            tenant_id=user.tenant_id,
+            resource_type="User",
+            resource_id=user.id,
+            extra_data={"sessions_revoked": revoked},
+            ip_address=ip_address,
+            user_agent=user_agent,
+        )
+
+        self.db.commit()

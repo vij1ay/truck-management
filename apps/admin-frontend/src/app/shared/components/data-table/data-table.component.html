@@ -21,14 +21,26 @@
             <!-- Cells -->
             <td mat-cell *matCellDef="let row">
 
+                <!-- Avatar thumbnail -->
+                <ng-container *ngIf="col.type === 'avatar'">
+                    <app-avatar-thumb [entityType]="col.avatarEntityType!" [entityId]="row.id"
+                        [hasAvatar]="!!row.has_avatar"
+                        [placeholderIcon]="col.avatarPlaceholderIcon || 'account_circle'"></app-avatar-thumb>
+                </ng-container>
+
                 <!-- Standard Text formatting -->
                 <ng-container *ngIf="!col.type || col.type === 'text'">
                     {{ row[col.def] || '-' }}
                 </ng-container>
 
-                <!-- Date formatting -->
+                <!-- Date formatting (genuine date-only fields, e.g. license_expiry, pickup_date) -->
                 <ng-container *ngIf="col.type === 'date'">
-                    {{ row[col.def] ? (row[col.def] | date:'medium') : '-' }}
+                    {{ row[col.def] ? (row[col.def] | date:'mediumDate') : '-' }}
+                </ng-container>
+
+                <!-- Datetime: backend already formats these in the user's local timezone (LocalDateTime) -->
+                <ng-container *ngIf="col.type === 'datetime'">
+                    {{ row[col.def] || '-' }}
                 </ng-container>
 
                 <!-- Badge (Use status badge dynamically via ng-content projection or wrapper logic) -->

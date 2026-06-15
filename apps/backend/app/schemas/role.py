@@ -3,6 +3,8 @@ from uuid import UUID
 
 from pydantic import BaseModel, Field
 
+from app.schemas.common import LocalDateTime
+
 
 class RoleBase(BaseModel):
     """Base role schema."""
@@ -29,9 +31,9 @@ class RoleResponse(RoleBase):
     
     id: UUID
     is_system_role: bool
-    created_at: datetime
-    updated_at: datetime
-    
+    created_at: LocalDateTime
+    updated_at: LocalDateTime
+
     model_config = {"from_attributes": True}
 
 
@@ -58,7 +60,7 @@ class RoleAssignmentResponse(BaseModel):
     role_id: UUID
     role_name: str
     tenant_id: UUID | None = None
-    assigned_at: datetime
-    expires_at: datetime | None = None
-    
+    assigned_at: LocalDateTime
+    expires_at: LocalDateTime | None = None
+
     model_config = {"from_attributes": True}

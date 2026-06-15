@@ -6,6 +6,7 @@ from typing import Optional, List
 from pydantic import BaseModel, field_validator, model_validator
 
 from app.models.truck import TruckType, TruckStatus, OwnershipType
+from app.schemas.common import LocalDateTime
 
 
 class TruckBase(BaseModel):
@@ -134,8 +135,9 @@ class TruckResponse(BaseModel):
 
     notes: Optional[str] = None
     is_operational: bool
-    created_at: datetime
-    updated_at: datetime
+    has_avatar: bool = False
+    created_at: LocalDateTime
+    updated_at: LocalDateTime
 
     model_config = {"from_attributes": True}
 
@@ -146,3 +148,27 @@ class TruckListResponse(BaseModel):
     page: int
     size: int
     pages: int
+
+
+class TruckPhotoResponse(BaseModel):
+    """A single photo in a truck's gallery. `photo_path` is never exposed —
+    fetch the image itself via GET /trucks/{id}/photos/{photo_id}."""
+
+    id: UUID
+    truck_id: UUID
+    position: int
+    created_at: LocalDateTime
+
+    model_config = {"from_attributes": True}
+
+
+class TruckBasic(BaseModel):
+    """Minimal truck info for nested responses (e.g. DriverMeResponse.current_truck)."""
+
+    id: UUID
+    registration_no: str
+    make: Optional[str] = None
+    model: Optional[str] = None
+    has_avatar: bool = False
+
+    model_config = {"from_attributes": True}

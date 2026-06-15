@@ -1,4 +1,3 @@
-from datetime import datetime
 from decimal import Decimal
 from uuid import UUID
 from typing import Optional, List
@@ -7,6 +6,7 @@ import re
 from pydantic import BaseModel, field_validator
 
 from app.models.client import ClientType
+from app.schemas.common import LocalDateTime, UserEmail
 
 
 class ClientBase(BaseModel):
@@ -100,6 +100,7 @@ class ClientUpdate(BaseModel):
 class ClientResponse(BaseModel):
     id: UUID
     tenant_id: UUID
+    user_id: Optional[UUID] = None
     client_type: ClientType
     company_name: str
     contact_person: Optional[str] = None
@@ -116,8 +117,9 @@ class ClientResponse(BaseModel):
     payment_terms_days: Optional[int] = None
     is_active: bool
     notes: Optional[str] = None
-    created_at: datetime
-    updated_at: datetime
+    has_avatar: bool = False
+    created_at: LocalDateTime
+    updated_at: LocalDateTime
 
     model_config = {"from_attributes": True}
 
@@ -128,3 +130,8 @@ class ClientListResponse(BaseModel):
     page: int
     size: int
     pages: int
+
+
+class LinkPortalAccountRequest(BaseModel):
+    """Link this Client (company) record to an existing portal-user account."""
+    email: UserEmail

@@ -28,6 +28,18 @@
     width: 100%;
 }
 
+.forgot-password-link {
+    text-align: right;
+    margin-top: -8px;
+
+    a {
+        color: inherit;
+        text-decoration: underline;
+        cursor: pointer;
+        font-size: 0.85rem;
+    }
+}
+
 .form-actions {
     margin-top: 8px;
 

@@ -13,6 +13,10 @@ import { FormsModule } from '@angular/forms';
 
 import { InvoiceService, InvoiceItem, InvoiceStatus } from '../services/invoice.service';
 import { NotificationService } from '../../../core/services/notification.service';
+import { PermissionService } from '../../../core/auth/permission.service';
+import { Tenant } from '../../../core/services/tenant.service';
+import { TenantFilterComponent } from '../../../shared/components/tenant-filter/tenant-filter.component';
+import { downloadBlob } from '../../../shared/utils/download.util';
 
 @Component({
     selector: 'app-invoice-list',
@@ -28,6 +32,7 @@ import { NotificationService } from '../../../core/services/notification.service
         MatSelectModule,
         MatFormFieldModule,
         MatProgressSpinnerModule,
+        TenantFilterComponent,
     ],
     templateUrl: './invoice-list.component.html',
     styleUrl: './invoice-list.component.scss',
@@ -36,6 +41,7 @@ export class InvoiceListComponent implements OnInit {
     private invoiceService = inject(InvoiceService);
     private router = inject(Router);
     private notification = inject(NotificationService);
+    private permissionService = inject(PermissionService);
 
     invoices = signal<InvoiceItem[]>([]);
     total = signal(0);
@@ -45,7 +51,12 @@ export class InvoiceListComponent implements OnInit {
     pageSize = 50;
     statusFilter: InvoiceStatus | '' = '';
 
-    readonly displayedColumns = ['invoice_no', 'client_name', 'load_no', 'issued_date', 'total_amount', 'paid_amount', 'outstanding_amount', 'status', 'actions'];
+    // SuperAdmin sees invoices across all tenants and can filter/identify by tenant
+    isSuperAdmin = this.permissionService.hasRole('SuperAdmin');
+    tenants: Tenant[] = [];
+    selectedTenant: Tenant | null = null;
+
+    displayedColumns = ['invoice_no', 'client_name', 'load_no', 'issued_date', 'total_amount', 'paid_amount', 'outstanding_amount', 'status', 'actions'];
 
     readonly statusOptions: { value: InvoiceStatus | ''; label: string }[] = [
         { value: '', label: 'All' },
@@ -58,12 +69,32 @@ export class InvoiceListComponent implements OnInit {
     ];
 
     ngOnInit(): void {
+        if (this.isSuperAdmin) {
+            // Insert a Tenant column right after the invoice number so results can be told apart
+            this.displayedColumns.splice(1, 0, 'tenant_name');
+        }
+
         this.load();
+    }
+
+    onTenantsLoaded(tenants: Tenant[]): void {
+        this.tenants = tenants;
+    }
+
+    onTenantChange(tenant: Tenant | null): void {
+        this.selectedTenant = tenant;
+        this.page = 1;
+        this.load();
+    }
+
+    /** Look up a tenant's display name for the SuperAdmin "Tenant" column. */
+    tenantName(tenantId: string): string {
+        return this.tenants.find(t => t.id === tenantId)?.name ?? '—';
     }
 
     load(): void {
         this.loading.set(true);
-        this.invoiceService.getInvoices(this.page, this.pageSize, this.statusFilter || undefined).subscribe({
+        this.invoiceService.getInvoices(this.page, this.pageSize, this.statusFilter || undefined, undefined, this.selectedTenant?.id).subscribe({
             next: (res) => {
                 this.invoices.set(res.items);
                 this.total.set(res.total);
@@ -89,6 +120,14 @@ export class InvoiceListComponent implements OnInit {
 
     openDetail(inv: InvoiceItem): void {
         this.router.navigate(['/invoices', inv.id]);
+    }
+
+    downloadPdf(inv: InvoiceItem, event: Event): void {
+        event.stopPropagation();
+        this.invoiceService.downloadPdf(inv.id).subscribe({
+            next: (blob) => downloadBlob(blob, `${inv.invoice_no}.pdf`),
+            error: () => this.notification.showError('Failed to download invoice PDF'),
+        });
     }
 
     formatCurrency(value: number): string {

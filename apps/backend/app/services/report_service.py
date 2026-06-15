@@ -46,6 +46,8 @@ class ReportService:
             available_drivers=data["available_drivers"],
             loads_this_month=data["loads_this_month"],
             revenue_this_month=data["revenue_this_month"],
+            overdue_invoices_count=data["overdue_invoices_count"],
+            overdue_invoices_amount=data["overdue_invoices_amount"],
         )
 
     def get_load_trend(self, months: int = 12) -> LoadTrendResponse:

@@ -6,6 +6,8 @@ from app.schemas.auth import (
     TokenPayloadSchema,
     PasswordChangeRequest,
     PasswordResetRequest,
+    PasswordResetResponse,
+    PasswordResetConfirm,
 )
 from app.schemas.user import (
     UserBase,
@@ -15,6 +17,7 @@ from app.schemas.user import (
     UserResponse,
     UserListResponse,
     UserActivateRequest,
+    TimezoneListResponse,
     RoleBasic,
 )
 from app.schemas.tenant import (
@@ -49,11 +52,14 @@ from app.schemas.truck import (
     TruckUpdate,
     TruckResponse,
     TruckListResponse,
+    TruckPhotoResponse,
+    TruckBasic,
 )
 from app.schemas.driver import (
     DriverCreate,
     DriverUpdate,
     DriverResponse,
+    DriverMeResponse,
     DriverListResponse,
     DriverAvailabilityUpdate,
 )
@@ -62,6 +68,7 @@ from app.schemas.client import (
     ClientUpdate,
     ClientResponse,
     ClientListResponse,
+    LinkPortalAccountRequest,
 )
 from app.schemas.document import (
     DocumentCreate,
@@ -75,9 +82,19 @@ from app.schemas.load import (
     LoadUpdate,
     LoadStatusTransition,
     LoadCancelRequest,
+    LoadCheckpointRequest,
     LoadResponse,
     LoadListResponse,
     LoadHistoryResponse,
+    PortalLoadCreate,
+    PortalLoadResponse,
+    PortalLoadListResponse,
+)
+from app.schemas.portal import (
+    PortalCarrierLink,
+    PortalProfileResponse,
+    PortalInvoiceResponse,
+    PortalInvoiceListResponse,
 )
 from app.schemas.invoice import (
     InvoiceCreate, InvoiceUpdate, InvoiceResponse, InvoiceListResponse,
@@ -101,6 +118,8 @@ __all__ = [
     "TokenPayloadSchema",
     "PasswordChangeRequest",
     "PasswordResetRequest",
+    "PasswordResetResponse",
+    "PasswordResetConfirm",
     # User
     "UserBase",
     "UserCreate",
@@ -109,6 +128,7 @@ __all__ = [
     "UserResponse",
     "UserListResponse",
     "UserActivateRequest",
+    "TimezoneListResponse",
     "RoleBasic",
     # Tenant
     "TenantBase",
@@ -138,10 +158,13 @@ __all__ = [
     "TruckUpdate",
     "TruckResponse",
     "TruckListResponse",
+    "TruckPhotoResponse",
+    "TruckBasic",
     # Driver
     "DriverCreate",
     "DriverUpdate",
     "DriverResponse",
+    "DriverMeResponse",
     "DriverListResponse",
     "DriverAvailabilityUpdate",
     # Client
@@ -149,6 +172,7 @@ __all__ = [
     "ClientUpdate",
     "ClientResponse",
     "ClientListResponse",
+    "LinkPortalAccountRequest",
     # Document
     "DocumentCreate",
     "DocumentUpdate",
@@ -160,9 +184,17 @@ __all__ = [
     "LoadUpdate",
     "LoadStatusTransition",
     "LoadCancelRequest",
+    "LoadCheckpointRequest",
     "LoadResponse",
     "LoadListResponse",
     "LoadHistoryResponse",
+    "PortalLoadCreate",
+    "PortalLoadResponse",
+    "PortalLoadListResponse",
+    "PortalCarrierLink",
+    "PortalProfileResponse",
+    "PortalInvoiceResponse",
+    "PortalInvoiceListResponse",
     # Invoice
     "InvoiceCreate",
     "InvoiceUpdate",

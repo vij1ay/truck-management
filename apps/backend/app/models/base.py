@@ -1,8 +1,9 @@
 import uuid
-from datetime import datetime
 from sqlalchemy import Column, DateTime, Boolean
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import DeclarativeBase, declared_attr
+
+from app.core.datetime_utils import utc_now
 
 
 class Base(DeclarativeBase):
@@ -13,8 +14,8 @@ class Base(DeclarativeBase):
 class TimestampMixin:
     """Mixin for created_at and updated_at timestamps."""
     
-    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+    created_at = Column(DateTime, default=utc_now, nullable=False)
+    updated_at = Column(DateTime, default=utc_now, onupdate=utc_now, nullable=False)
 
 
 class SoftDeleteMixin:
@@ -26,7 +27,7 @@ class SoftDeleteMixin:
     def soft_delete(self):
         """Mark the record as deleted."""
         self.is_deleted = True
-        self.deleted_at = datetime.utcnow()
+        self.deleted_at = utc_now()
     
     def restore(self):
         """Restore a soft-deleted record."""

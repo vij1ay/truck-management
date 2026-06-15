@@ -89,9 +89,10 @@ export class DriverService {
     private http = inject(HttpClient);
     private basePath = 'drivers';
 
-    getDrivers(page = 1, size = 50, status?: string): Observable<DriverListResponse> {
+    getDrivers(page = 1, size = 50, status?: string, tenantId?: string): Observable<DriverListResponse> {
         let params = new HttpParams().set('page', page).set('size', size);
         if (status) params = params.set('status', status);
+        if (tenantId) params = params.set('tenant_id', tenantId);
         return this.http.get<DriverListResponse>(this.basePath, { params });
     }
 

@@ -2,6 +2,7 @@ from uuid import UUID
 
 from sqlalchemy.orm import Session
 
+from app.core.datetime_utils import utc_now
 from app.core.exceptions import (
     BadRequestException,
     ConflictException,
@@ -9,6 +10,7 @@ from app.core.exceptions import (
     ForbiddenException,
 )
 from app.core.security import hash_password
+from app.core.avatar_storage import validate_image, save_avatar, delete_avatar, read_avatar
 from app.models import Tenant, User, EventCategory
 from app.repositories import TenantRepository, UserRepository, RoleRepository
 from app.schemas import TenantCreate, TenantUpdate
@@ -36,6 +38,66 @@ class TenantService:
         if not tenant:
             raise NotFoundException("Tenant not found")
         return tenant
+
+    def upload_avatar(
+        self,
+        tenant_id: UUID,
+        content: bytes,
+        content_type: str | None,
+        ip_address: str | None = None,
+        user_agent: str | None = None,
+    ) -> Tenant:
+        """Validate, store, and attach a logo to a tenant."""
+        tenant = self.get_tenant(tenant_id)
+        ext = validate_image(content, content_type)
+
+        old_path = tenant.avatar_path
+        tenant.avatar_path = save_avatar("tenants", content, ext)
+        self.db.flush()
+        delete_avatar(old_path)
+
+        self.audit_service.log_event(
+            event_type="TENANT_AVATAR_UPDATED",
+            event_category=EventCategory.tenant_mgmt,
+            user_id=self.current_user_id,
+            tenant_id=tenant.id,
+            resource_type="tenant",
+            resource_id=tenant.id,
+            ip_address=ip_address,
+            user_agent=user_agent,
+        )
+        return tenant
+
+    def remove_avatar(
+        self,
+        tenant_id: UUID,
+        ip_address: str | None = None,
+        user_agent: str | None = None,
+    ) -> Tenant:
+        """Remove a tenant's logo, if any."""
+        tenant = self.get_tenant(tenant_id)
+        delete_avatar(tenant.avatar_path)
+        tenant.avatar_path = None
+        self.db.flush()
+
+        self.audit_service.log_event(
+            event_type="TENANT_AVATAR_REMOVED",
+            event_category=EventCategory.tenant_mgmt,
+            user_id=self.current_user_id,
+            tenant_id=tenant.id,
+            resource_type="tenant",
+            resource_id=tenant.id,
+            ip_address=ip_address,
+            user_agent=user_agent,
+        )
+        return tenant
+
+    def get_avatar(self, tenant_id: UUID) -> tuple[bytes, str]:
+        """Read a tenant's stored logo."""
+        tenant = self.get_tenant(tenant_id)
+        if not tenant.avatar_path:
+            raise NotFoundException("No avatar set for this tenant")
+        return read_avatar(tenant.avatar_path)
     
     def get_tenants(
         self,
@@ -194,21 +256,20 @@ class TenantService:
         # Soft delete all users in tenant
         from sqlalchemy import update
         from app.models import User
-        from datetime import datetime
-        
+
         stmt = (
             update(User)
             .where(User.tenant_id == tenant_id)
-            .values(is_deleted=True, deleted_at=datetime.utcnow())
+            .values(is_deleted=True, deleted_at=utc_now())
         )
         self.db.execute(stmt)
-        
+
         # Revoke all tokens for tenant users
         from app.models import RefreshToken
         stmt = (
             update(RefreshToken)
             .where(RefreshToken.tenant_id == tenant_id)
-            .values(revoked=True, revoked_at=datetime.utcnow())
+            .values(revoked=True, revoked_at=utc_now())
         )
         self.db.execute(stmt)
         

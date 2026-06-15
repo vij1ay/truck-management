@@ -5,12 +5,13 @@ from uuid import UUID
 from sqlalchemy.orm import Session
 
 from app.core.exceptions import BadRequestException, ConflictException, NotFoundException
-from app.models import EventCategory
+from app.models import EventCategory, Tenant
 from app.models.invoice import Invoice, InvoiceStatus, Payment, PaymentMethod
 from app.models.load import Load
 from app.repositories.invoice import InvoiceRepository, PaymentRepository
 from app.schemas.invoice import InvoiceCreate, InvoiceUpdate, PaymentCreate
 from app.services.audit_service import AuditService
+from app.services.invoice_pdf import generate_invoice_pdf
 from app.services.payment import get_payment_gateway
 
 
@@ -54,6 +55,11 @@ class InvoiceService:
     def get_invoice(self, invoice_id: UUID) -> Invoice:
         return self._enrich(self._get_invoice(invoice_id))
 
+    def generate_pdf(self, invoice_id: UUID) -> bytes:
+        inv = self._enrich(self._get_invoice(invoice_id))
+        tenant = self.db.get(Tenant, inv.tenant_id)
+        return generate_invoice_pdf(inv, tenant)
+
     def get_invoices(
         self,
         page: int = 1,
@@ -61,11 +67,43 @@ class InvoiceService:
         status: InvoiceStatus | None = None,
         client_id: UUID | None = None,
         load_id: UUID | None = None,
+        tenant_id: UUID | None = None,
     ) -> tuple[list[Invoice], int]:
+        self.refresh_overdue()
         skip = (page - 1) * size
-        items = self.invoice_repo.get_all_filtered(skip=skip, limit=size, status=status, client_id=client_id, load_id=load_id)
-        total = self.invoice_repo.count_filtered(status=status, client_id=client_id, load_id=load_id)
+        items = self.invoice_repo.get_all_filtered(
+            skip=skip, limit=size, status=status, client_id=client_id, load_id=load_id,
+            tenant_id=tenant_id, include_all_tenants=self.is_superadmin,
+        )
+        total = self.invoice_repo.count_filtered(
+            status=status, client_id=client_id, load_id=load_id,
+            tenant_id=tenant_id, include_all_tenants=self.is_superadmin,
+        )
         return [self._enrich(i) for i in items], total
+
+    # ── Overdue alerting ───────────────────────────────────────────────────────
+
+    def refresh_overdue(self) -> list[Invoice]:
+        """Flip SENT/PARTIAL invoices past their due_date to OVERDUE. Returns the updated invoices."""
+        candidates = self.invoice_repo.get_overdue_candidates()
+        updated = []
+        for inv in candidates:
+            old_status = inv.status
+            self.invoice_repo.update(inv, {"status": InvoiceStatus.OVERDUE})
+            self.audit.log_event(
+                event_type="INVOICE_OVERDUE",
+                event_category=EventCategory.user_mgmt,
+                user_id=self.current_user_id,
+                tenant_id=self.tenant_id,
+                resource_type="Invoice",
+                resource_id=inv.id,
+                old_value={"status": old_status},
+                new_value={"status": InvoiceStatus.OVERDUE},
+            )
+            updated.append(inv)
+        if updated:
+            self.db.commit()
+        return updated
 
     # ── Create ─────────────────────────────────────────────────────────────────
 

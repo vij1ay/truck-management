@@ -1,0 +1,40 @@
+<div class="portal-container">
+    <mat-toolbar color="primary">
+        <mat-icon class="brand-icon">local_shipping</mat-icon>
+        <span class="brand-title">{{ companyName() }}</span>
+
+        <span class="flex-spacer"></span>
+
+        <a mat-button routerLink="/portal/shipments" routerLinkActive="active-link">
+            <mat-icon>local_shipping</mat-icon>
+            My Shipments
+        </a>
+
+        <a mat-button routerLink="/portal/invoices" routerLinkActive="active-link">
+            <mat-icon>receipt_long</mat-icon>
+            My Invoices
+        </a>
+
+        <button mat-icon-button (click)="toggleTheme()" aria-label="Toggle Theme">
+            <mat-icon>{{ themeService.isDarkTheme() ? 'light_mode' : 'dark_mode' }}</mat-icon>
+        </button>
+
+        <button mat-icon-button [matMenuTriggerFor]="profileMenu" aria-label="User Profile">
+            <mat-icon>account_circle</mat-icon>
+        </button>
+        <mat-menu #profileMenu="matMenu">
+            <div class="user-info-header" *ngIf="authService.currentUser() as user">
+                <span>{{ user.first_name }} {{ user.last_name }}</span>
+                <small>{{ user.email }}</small>
+            </div>
+            <button mat-menu-item (click)="logout()">
+                <mat-icon>exit_to_app</mat-icon>
+                <span>{{ 'AUTH.LOGOUT' | translate }}</span>
+            </button>
+        </mat-menu>
+    </mat-toolbar>
+
+    <main class="content-container">
+        <router-outlet></router-outlet>
+    </main>
+</div>

@@ -3,6 +3,7 @@ from uuid import UUID
 from sqlalchemy import select, func, and_, or_
 from sqlalchemy.orm import Session, joinedload
 
+from app.core.datetime_utils import utc_now
 from app.models import User, UserRole, Role
 from app.repositories.base import TenantAwareRepository
 
@@ -55,15 +56,16 @@ class UserRepository(TenantAwareRepository[User]):
         skip: int = 0,
         limit: int = 100,
         is_active: bool | None = None,
-        search: str | None = None
+        search: str | None = None,
+        tenant_id: UUID | None = None
     ) -> list[User]:
         """Get all users with their roles."""
         stmt = select(User).where(User.is_deleted == False)
         stmt = self._apply_tenant_filter(stmt)
-        
+
         if is_active is not None:
             stmt = stmt.where(User.is_active == is_active)
-        
+
         if search:
             search_term = f"%{search}%"
             stmt = stmt.where(
@@ -73,25 +75,29 @@ class UserRepository(TenantAwareRepository[User]):
                     User.last_name.ilike(search_term)
                 )
             )
-        
+
+        if tenant_id is not None:
+            stmt = stmt.where(User.tenant_id == tenant_id)
+
         stmt = stmt.options(
             joinedload(User.user_roles).joinedload(UserRole.role)
         ).offset(skip).limit(limit)
-        
+
         return list(self.db.execute(stmt).unique().scalars().all())
-    
+
     def count_filtered(
         self,
         is_active: bool | None = None,
-        search: str | None = None
+        search: str | None = None,
+        tenant_id: UUID | None = None
     ) -> int:
         """Count users with filters."""
         stmt = select(func.count()).select_from(User).where(User.is_deleted == False)
         stmt = self._apply_tenant_filter(stmt)
-        
+
         if is_active is not None:
             stmt = stmt.where(User.is_active == is_active)
-        
+
         if search:
             search_term = f"%{search}%"
             stmt = stmt.where(
@@ -101,7 +107,10 @@ class UserRepository(TenantAwareRepository[User]):
                     User.last_name.ilike(search_term)
                 )
             )
-        
+
+        if tenant_id is not None:
+            stmt = stmt.where(User.tenant_id == tenant_id)
+
         return self.db.execute(stmt).scalar_one()
     
     def is_email_taken(self, email: str, exclude_id: UUID | None = None) -> bool:
@@ -124,14 +133,12 @@ class UserRepository(TenantAwareRepository[User]):
         assigned_by: UUID | None = None
     ) -> UserRole:
         """Assign a role to a user."""
-        from datetime import datetime
-        
         user_role = UserRole(
             user_id=user_id,
             role_id=role_id,
             tenant_id=tenant_id,
             assigned_by=assigned_by,
-            assigned_at=datetime.utcnow()
+            assigned_at=utc_now()
         )
         self.db.add(user_role)
         self.db.flush()

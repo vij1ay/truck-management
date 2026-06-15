@@ -2,6 +2,8 @@ import { Routes } from '@angular/router';
 import { AdminLayoutComponent } from './layouts/admin-layout/admin-layout.component';
 import { AuthLayoutComponent } from './layouts/auth-layout/auth-layout.component';
 import { authGuard } from './core/guards/auth.guard';
+import { roleGuard } from './core/guards/role.guard';
+import { homeRedirectGuard } from './core/guards/home-redirect.guard';
 
 export const routes: Routes = [
     {
@@ -9,9 +11,11 @@ export const routes: Routes = [
         component: AdminLayoutComponent,
         canActivate: [authGuard],
         children: [
-            { path: '', redirectTo: 'loads', pathMatch: 'full' },
+            { path: '', pathMatch: 'full', canActivate: [homeRedirectGuard], children: [] },
             {
                 path: 'loads',
+                canActivate: [roleGuard],
+                data: { roles: ['SuperAdmin', 'TenantAdmin', 'TransportAdmin', 'Accounts', 'Driver'] },
                 loadComponent: () => import('./features/loads/loads-main/loads-main').then(m => m.LoadsMain)
             },
             {
@@ -35,6 +39,12 @@ export const routes: Routes = [
                 loadComponent: () => import('./features/admin/users/user-list/user-list').then(m => m.UserList)
             },
             {
+                path: 'audit-logs',
+                canActivate: [roleGuard],
+                data: { roles: ['SuperAdmin', 'TenantAdmin'] },
+                loadComponent: () => import('./features/admin/audit-logs/audit-log-list/audit-log-list.component').then(m => m.AuditLogListComponent)
+            },
+            {
                 path: 'reports',
                 loadComponent: () => import('./features/reports/reports-dashboard/reports-dashboard.component').then(m => m.ReportsDashboardComponent)
             },
@@ -49,12 +59,41 @@ export const routes: Routes = [
         ]
     },
     {
+        path: 'portal',
+        loadComponent: () => import('./layouts/portal-layout/portal-layout.component').then(m => m.PortalLayoutComponent),
+        canActivate: [authGuard, roleGuard],
+        data: { roles: ['Client'] },
+        children: [
+            { path: '', redirectTo: 'shipments', pathMatch: 'full' },
+            {
+                path: 'shipments',
+                loadComponent: () => import('./features/portal/shipment-list/shipment-list.component').then(m => m.ShipmentListComponent)
+            },
+            {
+                path: 'shipments/:id',
+                loadComponent: () => import('./features/portal/shipment-detail/shipment-detail.component').then(m => m.ShipmentDetailComponent)
+            },
+            {
+                path: 'invoices',
+                loadComponent: () => import('./features/portal/invoice-list/invoice-list.component').then(m => m.PortalInvoiceListComponent)
+            }
+        ]
+    },
+    {
         path: 'auth',
         component: AuthLayoutComponent,
         children: [
             {
                 path: 'login',
                 loadComponent: () => import('./features/auth/login/login.component').then(m => m.LoginComponent)
+            },
+            {
+                path: 'forgot-password',
+                loadComponent: () => import('./features/auth/forgot-password/forgot-password.component').then(m => m.ForgotPasswordComponent)
+            },
+            {
+                path: 'reset-password',
+                loadComponent: () => import('./features/auth/reset-password/reset-password.component').then(m => m.ResetPasswordComponent)
             },
             { path: '', redirectTo: 'login', pathMatch: 'full' }
         ]

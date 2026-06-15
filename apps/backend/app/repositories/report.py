@@ -2,10 +2,11 @@ import calendar
 from datetime import date, timedelta
 from uuid import UUID
 
-from sqlalchemy import select, func, case, and_, extract
+from sqlalchemy import select, func, case, and_, or_, extract
 from sqlalchemy.orm import Session
 
 from app.models.driver import Driver, DriverStatus
+from app.models.invoice import Invoice, InvoiceStatus
 from app.models.load import Load, LoadStatus
 from app.models.client import Client
 from app.models.truck import Truck, TruckStatus
@@ -141,6 +142,29 @@ class ReportRepository:
             )
         ).scalar_one()
 
+        # Overdue invoices: explicitly OVERDUE, or SENT/PARTIAL with due_date in the past
+        overdue = self.db.execute(
+            select(
+                func.count().label("cnt"),
+                func.coalesce(func.sum(Invoice.total_amount - Invoice.paid_amount), 0).label("amount"),
+            )
+            .select_from(Invoice)
+            .where(
+                and_(
+                    Invoice.is_deleted == False,
+                    Invoice.tenant_id == self.tenant_id,
+                    or_(
+                        Invoice.status == InvoiceStatus.OVERDUE,
+                        and_(
+                            Invoice.status.in_([InvoiceStatus.SENT, InvoiceStatus.PARTIAL]),
+                            Invoice.due_date.is_not(None),
+                            Invoice.due_date < today,
+                        ),
+                    ),
+                )
+            )
+        ).one()
+
         return {
             "total_loads": total_loads,
             "by_status": by_status,
@@ -153,6 +177,8 @@ class ReportRepository:
             "available_drivers": available_drivers,
             "loads_this_month": loads_this_month,
             "revenue_this_month": float(revenue_this_month),
+            "overdue_invoices_count": overdue.cnt,
+            "overdue_invoices_amount": float(overdue.amount),
         }
 
     # ── Load trend ─────────────────────────────────────────────────────────────

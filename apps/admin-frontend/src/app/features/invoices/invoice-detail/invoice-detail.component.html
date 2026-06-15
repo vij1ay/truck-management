@@ -10,6 +10,9 @@
       <span class="status-chip" [class]="statusClass(inv.status)">{{ inv.status | titlecase }}</span>
       <span class="flex-spacer"></span>
 
+      <button mat-stroked-button (click)="downloadPdf()">
+        <mat-icon>picture_as_pdf</mat-icon> Download PDF
+      </button>
       @if (inv.status === 'draft') {
         <button mat-stroked-button (click)="sendInvoice()">
           <mat-icon>send</mat-icon> Mark as Sent
