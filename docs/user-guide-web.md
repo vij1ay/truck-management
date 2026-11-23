@@ -1,4 +1,4 @@
-# TransTrack — Web Application User Guide
+# TransTrack — Web Application User Guide.
 
 This guide explains how to use the TransTrack **admin web application**
 (`apps/admin-frontend`) — the Angular portal used by transport company staff
