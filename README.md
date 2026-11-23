@@ -1,4 +1,4 @@
-# Transport & Load Management System
+# Transport & Load Management System.
 
 A comprehensive multi-tenant transport and logistics management platform designed for regional operations (~300 km radius). Built with FastAPI backend, Angular admin portal, and Flutter mobile applications (planned).
 
