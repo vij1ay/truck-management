@@ -7,25 +7,96 @@ on:
     branches: [main, develop]
 
 jobs:
+  # Job names below must match `required_checks` in sdlc.yaml.
   backend:
     name: Backend — Lint & Test
     runs-on: ubuntu-latest
 
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: transport_db
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    defaults:
+      run:
+        working-directory: apps/backend
+
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/transport_db
+      JWT_SECRET_KEY: ci-only-secret-key-not-used-in-production-0123456789
+      SUPERADMIN_PASSWORD: CiOnlyPassword123!
+      # The forgot-password tests read the reset token from the response, which is DEBUG-only.
+      DEBUG: "true"
+
     steps:
       - uses: actions/checkout@v4
 
-      - name: Lint (ruff)
-        run: echo "Lint skipped (dummy) — OK"
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: apps/backend/requirements.txt
 
-      - name: Run tests
-        run: echo "Tests skipped (dummy) — OK"
+      - name: Install dependencies
+        run: |
+          pip install -r requirements.txt
+          pip install pytest-cov ruff
+
+      # Blocking lint = real errors only (syntax errors, undefined names, invalid comparisons).
+      # The full ruleset in pyproject.toml still reports ~1000 style findings; they are shown
+      # below as a non-blocking report until they are cleaned up (then drop --exit-zero and the
+      # --select above).
+      - name: Lint (ruff — errors)
+        run: ruff check app tests --select E9,F63,F7,F82
+
+      - name: Lint (ruff — full ruleset, non-blocking report)
+        run: ruff check app tests --statistics --exit-zero
+
+      - name: Run tests with coverage
+        run: >
+          python -m pytest tests -v
+          --cov=app --cov-report=term --cov-report=xml:coverage.xml
+          --junitxml=junit.xml
+
+      # LaneSync reads coverage/test reports from workflow artifacts of the release candidate.
+      - name: Upload test & coverage reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: unit-test-reports
+          path: |
+            apps/backend/junit.xml
+            apps/backend/coverage.xml
 
   frontend:
     name: Frontend — Build Check
     runs-on: ubuntu-latest
 
+    defaults:
+      run:
+        working-directory: apps/admin-frontend
+
     steps:
       - uses: actions/checkout@v4
 
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: apps/admin-frontend/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
       - name: Build (production)
-        run: echo "Build skipped (dummy) — OK"
+        run: npx ng build --configuration production
