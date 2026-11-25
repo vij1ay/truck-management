@@ -78,8 +78,8 @@ def repro():
         return
 
     token = resp.json()["access_token"]
-    from app.core.security import decode_token_unverified
-    payload = decode_token_unverified(token)
+    from app.core.security import decode_token
+    payload = decode_token(token)
     print(f"Token payload: {payload}")
     
     headers = {"Authorization": f"Bearer {token}"}

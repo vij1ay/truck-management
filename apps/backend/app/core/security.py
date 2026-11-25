@@ -105,11 +105,6 @@ def decode_token(token: str) -> dict[str, Any]:
     )
 
 
-def decode_token_unverified(token: str) -> dict[str, Any]:
-    """Decode a JWT token without verification (for extracting claims)."""
-    return jwt.decode(token, options={"verify_signature": False})
-
-
 class TokenPayload:
     """Parsed JWT token payload."""
     
