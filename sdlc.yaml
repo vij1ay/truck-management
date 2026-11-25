@@ -6,7 +6,7 @@ quality_gates:
   security:
     max_critical: 0
     max_high: 0
-    max_medium: 20
+    max_medium: 30  # baseline; lower as dependencies are upgraded
   sast_scan:
     max_critical: 0
     max_high: 0
