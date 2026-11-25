@@ -3,7 +3,8 @@ import uuid
 from datetime import datetime, timedelta
 from typing import Any
 
-from jose import JWTError, jwt
+import jwt
+from jwt import PyJWTError as JWTError
 from passlib.context import CryptContext
 
 from app.config import get_settings
@@ -106,7 +107,7 @@ def decode_token(token: str) -> dict[str, Any]:
 
 def decode_token_unverified(token: str) -> dict[str, Any]:
     """Decode a JWT token without verification (for extracting claims)."""
-    return jwt.get_unverified_claims(token)
+    return jwt.decode(token, options={"verify_signature": False})
 
 
 class TokenPayload:
