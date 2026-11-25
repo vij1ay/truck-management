@@ -3,7 +3,7 @@ from uuid import UUID
 from fastapi import Request
 from starlette.middleware.base import BaseHTTPMiddleware, RequestResponseEndpoint
 
-from app.core.security import decode_token_unverified
+from app.core.security import decode_token
 
 
 class TenantContextMiddleware(BaseHTTPMiddleware):
@@ -26,8 +26,8 @@ class TenantContextMiddleware(BaseHTTPMiddleware):
         if auth_header and auth_header.startswith("Bearer "):
             token = auth_header[7:]  # Remove "Bearer " prefix
             try:
-                # Decode without verification (just for context)
-                payload = decode_token_unverified(token)
+                # Verified decode: forged or expired tokens leave the context empty
+                payload = decode_token(token)
                 
                 if payload.get("sub"):
                     request.state.user_id = UUID(payload["sub"])
